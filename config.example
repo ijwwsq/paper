@@ -1,0 +1,20 @@
+# paper — settings shared by `t`, the greeting and term-start.
+# install.sh copies this to ~/.config/paper/config (only if it doesn't exist yet). Edit that copy.
+# Plain KEY="value" lines; read by both zsh (`source`) and python. ~ and $HOME are expanded.
+
+# Obsidian vault as seen from WSL, and its name (for obsidian:// links)
+VAULT="/mnt/c/Users/YOU/Documents/vault"
+VAULT_NAME="vault"
+
+# daily notes: folder and template inside the vault, heading new tasks go under
+DAILY_DIR="daily"
+DAILY_TEMPLATE="templates/daily.md"
+TASKS_HEADING="## Tasks"
+
+# greeting: ASCII art file and how many open tasks to list
+ART="$HOME/.config/paper/art.txt"
+GREET_TASKS=3
+
+# term-start: tmux session name and whether to pop the summary up on every terminal open
+SESSION="main"
+POPUP=1

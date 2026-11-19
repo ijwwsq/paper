@@ -1,0 +1,11 @@
+# scripts that run in WSL must keep LF line endings even on a Windows checkout
+*.sh       text eol=lf
+*.zsh      text eol=lf
+*.zsh-theme text eol=lf
+bin/*      text eol=lf
+tmux/*     text eol=lf
+art/*      text eol=lf
+config.example text eol=lf
+*.ps1      text eol=crlf
+*.vbs      text eol=crlf
+*.png      binary

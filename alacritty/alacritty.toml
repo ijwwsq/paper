@@ -1,0 +1,118 @@
+# paper — Alacritty: soft paper palette, JetBrains Mono, opens WSL straight into tmux.
+# WSL distro below is "Debian" — change it to yours (`wsl -l -q`).
+
+[terminal.shell]
+program = "wsl.exe"
+# opens tmux session "main" (reattaches if it exists) and pops up a fresh summary — see ~/.local/bin/term-start
+args = ["-d", "Debian", "--cd", "~", "--exec", "sh", "-c", "exec $HOME/.local/bin/term-start"]
+
+[window]
+padding = { x = 10, y = 8 }
+dynamic_padding = true
+decorations = "Full"
+dimensions = { columns = 112, lines = 30 }
+title = "Debian"
+dynamic_title = false
+
+[font]
+normal = { family = "JetBrains Mono", style = "Regular" }
+bold = { family = "JetBrains Mono", style = "SemiBold" }
+italic = { family = "JetBrains Mono", style = "Italic" }
+bold_italic = { family = "JetBrains Mono", style = "SemiBold Italic" }
+size = 9.5
+offset = { x = 0, y = 4 }       # a bit more line spacing
+glyph_offset = { x = 0, y = 2 }
+
+[cursor]
+style = { shape = "Block", blinking = "Off" }
+unfocused_hollow = true
+thickness = 0.15
+
+[scrolling]
+history = 20000
+multiplier = 3
+
+[selection]
+save_to_clipboard = true
+
+[mouse]
+hide_when_typing = true
+bindings = [
+  { mouse = "Right", action = "Paste" },
+]
+
+[keyboard]
+bindings = [
+  # Ctrl+V paste / Ctrl+Shift+C copy (Ctrl+C stays SIGINT)
+  { key = "V", mods = "Control", action = "Paste" },
+  { key = "C", mods = "Control|Shift", action = "Copy" },
+  # Ctrl+Backspace deletes previous word
+  { key = "Back", mods = "Control", chars = "\u0017" },
+  # new window
+  { key = "N", mods = "Control|Shift", action = "CreateNewWindow" },
+  # font zoom
+  { key = "Equals", mods = "Control", action = "IncreaseFontSize" },
+  { key = "Minus", mods = "Control", action = "DecreaseFontSize" },
+  { key = "Key0", mods = "Control", action = "ResetFontSize" },
+  # search in scrollback
+  { key = "F", mods = "Control|Shift", action = "SearchForward" },
+  # russian layout: same control codes as the latin keys
+  { key = "ф", mods = "Control", chars = "\u0001" },   # Ctrl+A  (tmux prefix)
+  { key = "с", mods = "Control", chars = "\u0003" },   # Ctrl+C
+  { key = "в", mods = "Control", chars = "\u0004" },   # Ctrl+D
+  { key = "к", mods = "Control", chars = "\u0012" },   # Ctrl+R  (history search)
+  { key = "д", mods = "Control", chars = "\u000c" },   # Ctrl+L
+  { key = "е", mods = "Control", chars = "\u0014" },   # Ctrl+T
+  { key = "м", mods = "Control", action = "Paste" },   # Ctrl+V
+]
+
+[bell]
+duration = 0
+
+# ── colors: soft paper (muted, low-contrast accents on white) ──
+[colors]
+draw_bold_text_with_bright_colors = false
+
+[colors.primary]
+background = "#fcfcfa"
+foreground = "#2f2f2f"
+
+[colors.cursor]
+text = "#fcfcfa"
+cursor = "#6b6b6b"
+
+[colors.selection]
+text = "CellForeground"
+background = "#e1e7f0"
+
+[colors.search]
+matches = { foreground = "#2f2f2f", background = "#f2e6c4" }
+focused_match = { foreground = "#fcfcfa", background = "#5b6fa8" }
+
+[colors.footer_bar]
+foreground = "#fcfcfa"
+background = "#4a4a4a"
+
+[colors.hints]
+start = { foreground = "#fcfcfa", background = "#5b6fa8" }
+end = { foreground = "#5b6fa8", background = "#e1e7f0" }
+
+[colors.normal]
+black   = "#3a3a3a"
+red     = "#b5584e"
+green   = "#5e8a5c"
+yellow  = "#a5803a"
+blue    = "#5b6fa8"
+magenta = "#8d6597"
+cyan    = "#4d8a8c"
+white   = "#a9a9a6"
+
+[colors.bright]
+black   = "#8c8c88"
+red     = "#c46f66"
+green   = "#729c6f"
+yellow  = "#b8934c"
+blue    = "#7083b8"
+magenta = "#9f79a8"
+cyan    = "#629b9d"
+white   = "#cfcfcb"

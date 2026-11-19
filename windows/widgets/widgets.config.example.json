@@ -1,0 +1,18 @@
+{
+  "vault": "%USERPROFILE%\\Documents\\vault",
+  "vaultName": "vault",
+  "dailyDir": "daily",
+  "templatesDir": "templates",
+  "remindMinutes": 15,
+  "openvpn": {
+    "enabled": true,
+    "dir": "%USERPROFILE%\\OpenVPN",
+    "gui": "C:\\Program Files\\OpenVPN\\bin\\openvpn-gui.exe",
+    "stripPrefix": ""
+  },
+  "clients": [
+    { "id": "wg",    "name": "WireGuard",    "kind": "wg" },
+    { "id": "cisco", "name": "Cisco Secure", "kind": "app", "app": "%ProgramFiles(x86)%\\Cisco\\Cisco Secure Client\\UI\\csc_ui.exe", "adapterMatch": "Cisco AnyConnect" },
+    { "id": "forti", "name": "FortiClient",  "kind": "app", "app": "C:\\Program Files\\Fortinet\\FortiClient\\FortiClient.exe", "adapterMatch": "Fortinet", "note": "work" }
+  ]
+}

@@ -1,0 +1,16 @@
+#!/bin/sh
+# term-start — terminal entry point (Alacritty runs this).
+#   new session      → create it; the first tab greets inline (zsh/greet.zsh)
+#   existing session → attach and pop the fresh summary up over it (any key closes)
+CONFIG="${PAPER_CONFIG:-$HOME/.config/paper/config}"
+SESSION=main POPUP=1
+[ -r "$CONFIG" ] && . "$CONFIG"
+
+if ! tmux has-session -t "$SESSION" 2>/dev/null; then
+  exec tmux new-session -s "$SESSION"
+fi
+if [ "$POPUP" = 1 ]; then
+  exec tmux attach -t "$SESSION" \; display-popup -w 92 -h 16 -T ' сводка ' -E \
+    "zsh -c 'source ~/.config/zsh/greet.zsh; greet; print -P \"%F{8}любая клавиша — закрыть · t help%f\"; read -sk1'"
+fi
+exec tmux attach -t "$SESSION"

@@ -1,0 +1,86 @@
+/* paper — soft light palette + JetBrains Mono, matches Alacritty / widgets.
+   Works on top of the Minimal theme (and the default one). Toggle: Settings → Appearance → CSS snippets. */
+
+.theme-light {
+  /* Minimal theme variables */
+  --bg1: #fcfcfa;
+  --bg2: #f6f6f3;
+  --bg3: #ececE8;
+  --ui1: #e4e4e0;
+  --ui2: #d6d6d1;
+  --ui3: #b9b9b4;
+  --tx1: #2f2f2f;
+  --tx2: #6b6b67;
+  --tx3: #a1a19c;
+  --ax1: #5b6fa8;
+  --ax2: #4a5d93;
+  --ax3: #5b6fa8;
+  --hl1: #e1e7f0;
+  --hl2: #f2e6c4;
+
+  /* core Obsidian variables (for the default theme / plugins) */
+  --background-primary: #fcfcfa;
+  --background-primary-alt: #f6f6f3;
+  --background-secondary: #f6f6f3;
+  --background-secondary-alt: #efefeb;
+  --background-modifier-border: #e4e4e0;
+  --text-normal: #2f2f2f;
+  --text-muted: #6b6b67;
+  --text-faint: #a1a19c;
+  --text-accent: #5b6fa8;
+  --interactive-accent: #5b6fa8;
+  --text-selection: #e1e7f0;
+  --text-highlight-bg: #f2e6c4;
+  --checkbox-color: #5b6fa8;
+  --link-color: #5b6fa8;
+  --link-external-color: #5b6fa8;
+  --tag-color: #6b6b67;
+  --tag-background: #efefeb;
+  --code-background: #f4f4f1;
+  --code-normal: #2f2f2f;
+  --blockquote-border-color: #d6d6d1;
+}
+
+/* fonts: everything mono, like the terminal */
+body {
+  --font-text-theme: "JetBrains Mono", Consolas, monospace;
+  --font-interface-theme: "JetBrains Mono", Consolas, monospace;
+  --font-monospace-theme: "JetBrains Mono", Consolas, monospace;
+  --font-text-size: 15px;
+  --line-height-normal: 1.65;
+  --file-line-width: 46rem;
+}
+
+/* headings: plain weight, terminal-ish markers */
+.theme-light {
+  --h1-weight: 600; --h2-weight: 600; --h3-weight: 600;
+  --h1-size: 1.5em; --h2-size: 1.25em; --h3-size: 1.1em;
+  --h1-color: #2f2f2f; --h2-color: #2f2f2f; --h3-color: #2f2f2f;
+}
+.markdown-rendered h1::before,
+.markdown-source-view.mod-cm6 .HyperMD-header-1 .cm-header::before { content: "# "; color: #b9b9b4; }
+.markdown-rendered h2::before { content: "## "; color: #b9b9b4; }
+.markdown-rendered h3::before { content: "### "; color: #b9b9b4; }
+
+/* list bullets as dashes */
+.markdown-rendered ul > li::marker { content: "- "; color: #a1a19c; }
+.markdown-rendered .list-bullet::after { background-color: #a1a19c; border-radius: 0; width: 6px; height: 1.5px; }
+
+/* checkboxes: square, thin */
+.markdown-rendered input[type="checkbox"],
+.markdown-source-view input[type="checkbox"] {
+  border-radius: 2px;
+  border: 1.5px solid #8c8c88;
+}
+.markdown-rendered input[type="checkbox"]:checked,
+.markdown-source-view input[type="checkbox"]:checked { background-color: #5b6fa8; border-color: #5b6fa8; }
+.markdown-rendered li.task-list-item[data-task="x"],
+.markdown-source-view .HyperMD-task-line[data-task="x"] { color: #a1a19c; text-decoration: line-through; }
+
+/* code + blockquotes */
+.markdown-rendered code, .cm-s-obsidian span.cm-inline-code { border-radius: 3px; }
+.markdown-rendered blockquote { border-left-width: 2px; font-style: normal; color: #6b6b67; }
+
+/* thin, quiet scrollbars and dividers */
+.workspace-split.mod-root .workspace-tab-header-container { border-bottom: 1px solid #e4e4e0; }
+::-webkit-scrollbar-thumb { background-color: #e4e4e0 !important; border-radius: 0 !important; }

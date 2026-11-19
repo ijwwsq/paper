@@ -1,0 +1,120 @@
+<pre>
+     /\___/\
+    (  o o  )     paper
+    (  =v=  )
+     )     (      мягкий бумажный сетап для windows + wsl
+    (  | |  )~    терминал · задачи · виджеты · одна палитра
+     \_|_|_/
+</pre>
+
+светлый фон, графитовый текст, приглушённые цвета, JetBrains Mono везде.
+задачи живут в заметках дня Obsidian, а управляются из терминала.
+
+<p align="center"><img src="docs/terminal.png" width="720" alt="терминал: сводка и t"></p>
+
+---
+
+## что внутри
+
+| | |
+|---|---|
+| **`t`** | задачи Obsidian из терминала: статусы, время, перенос, неделя, поиск |
+| **сводка** | кот, дата, аптайм и задачи на сегодня — в каждой новой вкладке tmux и при открытии терминала |
+| **tmux** | вкладки и панели на `Alt` без префикса, работает и в русской раскладке |
+| **alacritty** | бумажная палитра, блочный курсор, `Ctrl+V` / `Ctrl+Shift+C`, кириллица в хоткеях |
+| **mini** | промпт `dir $ ` для oh-my-zsh, без ничего лишнего |
+| **виджеты** | часы, календарь с задачами, VPN, графики cpu/mem/net, напоминания Windows за 15 минут |
+| **obsidian · vs code** | сниппет и цвета в той же палитре (у vs code есть тёмная версия) |
+| **обои** | конвертер фото → ASCII ровно под разрешение монитора |
+
+<p align="center"><img src="docs/widgets.png" width="560" alt="виджеты"></p>
+
+## установка
+
+**wsl / linux** — нужны `zsh`, `tmux`, `python3`:
+
+```sh
+git clone <этот репо> ~/paper && bash ~/paper/install.sh
+$EDITOR ~/.config/paper/config      # путь к волту и папки заметок
+t config && t help
+```
+
+**windows** — PowerShell, без прав администратора:
+
+```powershell
+.\install.ps1                                            # alacritty + шрифт
+.\install.ps1 -Vault "$env:USERPROFILE\Documents\vault"  # + сниппет obsidian
+.\install.ps1 -Widgets                                   # + виджеты в автозагрузку
+```
+
+оба установщика можно гонять повторно: свои файлы обновляют, чужие уносят в `*.bak-<дата>`,
+твой конфиг и арт не трогают.
+
+<pre>
+          z
+        z
+   /\_/\ z
+  ( -.- )_______
+  (  u u        )~
+   `-----------'
+</pre>
+
+## t
+
+```
+t                     сегодня              t done 2      [x] готово
+t tom · t +3 · t week другие дни           t start 1     [/] в работе
+t add 16:00 текст     со временем          t cancel 4    [-] отменено
+t add @tom текст      на другой день       t mv 3 [день] [>] перенести
+t prio 2 · t at 2 -   приоритет · время    t find слово  поиск по волту
+t open · t edit       открыть заметку      t help        всё остальное
+```
+
+статусы — как в плагине Obsidian Tasks, так что заметки остаются обычным markdown.
+задача со временем (`t add 16:00 …`) даёт уведомление Windows за 15 минут, если запущены виджеты.
+
+## настройка
+
+всё в `~/.config/paper/config` (пример — [`config.example`](config.example)):
+
+```sh
+VAULT="/mnt/c/Users/YOU/Documents/vault"   # волт, как его видно из wsl
+DAILY_DIR="daily"                          # папка заметок дня
+DAILY_TEMPLATE="templates/daily.md"        # шаблон для новых заметок
+ART="$HOME/.config/paper/art.txt"          # любой текстовый арт для сводки
+GREET_TASKS=3                              # сколько задач показывать
+POPUP=1                                    # сводка при открытии терминала
+```
+
+в [`art/`](art) лежат ещё варианты — просто скопируй любой в `~/.config/paper/art.txt`.
+
+виджеты читают `widgets.config.json` рядом с собой: волт, клиенты VPN, за сколько минут напоминать
+([пример](windows/widgets/widgets.config.example.json)).
+
+## палитра
+
+<p align="center"><img src="docs/palette.png" width="720" alt="палитра"></p>
+
+одна палитра на всё: alacritty, tmux, zsh, fzf, виджеты, obsidian, vs code.
+
+## обои
+
+```sh
+python tools/ascii_photo.py фото.jpg обои.png 1920 1080 13 JetBrainsMono-Bold.ttf [ширина_полосы_слева]
+```
+
+рендерь ровно в разрешение монитора — тогда символы чёткие. тёмные места заливаются фактурой
+из `@ # % & $`, тонкие линии — штрихами `/ \ | -`.
+
+## удалить
+
+`~/.local/bin/{t,term-start}`, `~/.config/{paper,zsh/greet.zsh}`, блок `>>> paper >>>` в `~/.zshrc`,
+`~/.tmux.conf` — а рядом лежат `*.bak-*`, если хочешь вернуть как было.
+
+<pre>
+      /\_/\
+     ( o.o )
+ ____/ >^< \____________
+</pre>
+
+<sub>MIT · сделано для себя, валяется для всех</sub>

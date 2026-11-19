@@ -1,0 +1,314 @@
+#!/usr/bin/env python3
+"""t — Obsidian daily-note tasks from the terminal. Run `t help`."""
+import datetime as dt
+import os
+import re
+import shlex
+import subprocess
+import sys
+import urllib.parse
+
+# ── config ────────────────────────────────────────────────────────────────
+CONFIG = os.path.expanduser(os.environ.get("PAPER_CONFIG", "~/.config/paper/config"))
+DEFAULTS = {
+    "VAULT": "~/vault", "VAULT_NAME": "vault",
+    "DAILY_DIR": "daily", "DAILY_TEMPLATE": "templates/daily.md", "TASKS_HEADING": "## Tasks",
+}
+
+
+def read_config(path):
+    cfg = dict(DEFAULTS)
+    if os.path.exists(path):
+        for line in open(path, encoding="utf-8"):
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            v = shlex.split(v, comments=True)
+            cfg[k.strip()] = os.path.expandvars(os.path.expanduser(v[0])) if v else ""
+    return cfg
+
+
+CFG = read_config(CONFIG)
+VAULT = os.path.expanduser(CFG["VAULT"])
+TASK = re.compile(r"^(\s*)- \[(.)\]\s*(.*)$")
+TIME = re.compile(r"^(\d{1,2}:\d{2})(?:\s*[-–]\s*\d{1,2}:\d{2})?\s+")
+PRIO = "⏫"
+
+# ── look ──────────────────────────────────────────────────────────────────
+C = dict(dim="\033[90m", blue="\033[34m", red="\033[31m", yel="\033[33m",
+         b="\033[1m", strike="\033[9m", rst="\033[0m")
+if not sys.stdout.isatty() and not os.environ.get("FORCE_COLOR"):
+    C = {k: "" for k in C}
+
+STATUS = {  # Obsidian Tasks plugin markers
+    " ": ("[ ]", ""), "/": ("[/]", C["blue"]), "x": ("[x]", C["dim"]), "X": ("[x]", C["dim"]),
+    "-": ("[-]", C["dim"] + C["strike"]), ">": ("[>]", C["dim"]), "!": ("[!]", C["red"]), "?": ("[?]", C["yel"]),
+}
+OPEN = {" ", "/", "!", "?"}
+WD = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"]
+
+
+def help_text():
+    d, b, bl, r = C["dim"], C["b"], C["blue"], C["rst"]
+    return f"""
+{b}t{r} {d}— задачи Obsidian из терминала · заметки дня · статусы плагина Tasks{r}
+
+{b}смотреть{r}
+  t                     сегодня
+  t tom · t yday        завтра · вчера
+  t +3 · t 2026-12-01   через 3 дня · конкретная дата
+  t week                ближайшие 7 дней
+  t find {d}слово{r}           открытые задачи по всему волту
+
+{b}добавлять{r}
+  t add {d}текст{r}             на сегодня
+  t add {bl}16:00{r} {d}текст{r}       со временем {d}→ напоминание за 15 мин (виджеты){r}
+  t add @tom {d}текст{r}        на другой день {d}(@tom @+2 @2026-12-01){r}
+  t tom {d}текст{r}             коротко: на завтра
+
+{b}статусы{r}                {d}N — номер из списка, можно несколько: t done 1 3{r}
+  t done N        [x] готово          t start N     {bl}[/]{r} в работе
+  t undo N        [ ] вернуть         t cancel N    {d}[-]{r} отменено
+  t mv N {d}[день]{r}    {d}[>]{r} перенести {d}(по умолчанию на завтра){r}
+
+{b}править{r}
+  t at N {bl}18:30{r}      поставить время     t at N -      убрать время
+  t prio N        {C['red']}⏫{r} приоритет      t rename N {d}текст{r}
+  t rm N          удалить
+
+{b}прочее{r}
+  t open          заметка в Obsidian  t edit        в $EDITOR
+  t config        где лежит конфиг и что в нём
+
+{d}к любой команде можно приписать день: t done 2 @yday · t rm 1 @tom{r}
+{d}конфиг: {CONFIG}{r}
+"""
+
+
+# ── notes ─────────────────────────────────────────────────────────────────
+def die(msg):
+    sys.exit(f"{C['red']}{msg}{C['rst']}")
+
+
+def parse_day(s):
+    today = dt.date.today()
+    s = s.lstrip("@")
+    named = {"": 0, "today": 0, "td": 0, "сегодня": 0, "tom": 1, "tomorrow": 1, "завтра": 1,
+             "yday": -1, "yesterday": -1, "вчера": -1}
+    if s in named:
+        return today + dt.timedelta(days=named[s])
+    if re.fullmatch(r"[+-]\d+", s):
+        return today + dt.timedelta(days=int(s))
+    try:
+        return dt.date.fromisoformat(s)
+    except ValueError:
+        return None
+
+
+def note_path(day):
+    return os.path.join(VAULT, CFG["DAILY_DIR"], f"{day:%Y-%m-%d}.md")
+
+
+def load(day, create=False):
+    if not os.path.isdir(VAULT):
+        die(f"волт не найден: {VAULT}\nпропиши VAULT в {CONFIG}")
+    p = note_path(day)
+    if not os.path.exists(p):
+        if not create:
+            return p, []
+        tpl = os.path.join(VAULT, CFG["DAILY_TEMPLATE"])
+        text = open(tpl, encoding="utf-8").read() if os.path.exists(tpl) else CFG["TASKS_HEADING"] + "\n"
+        text = text.replace("{{date}}", f"{day:%Y-%m-%d}").replace("{{title}}", f"{day:%Y-%m-%d}")
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        open(p, "w", encoding="utf-8", newline="\n").write(text)
+    return p, open(p, encoding="utf-8").read().split("\n")
+
+
+def save(p, lines):
+    open(p, "w", encoding="utf-8", newline="\n").write("\n".join(lines))
+
+
+def tasks(lines):
+    return [(i, m.group(2), m.group(3).strip())
+            for i, l in enumerate(lines) if (m := TASK.match(l)) and m.group(3).strip()]
+
+
+def fmt(n, mark, text):
+    label, color = STATUS.get(mark, (f"[{mark}]", ""))
+    m = TIME.match(text)
+    body, tm = (text[m.end():], m.group(1)) if m else (text, "")
+    num = f"{C['dim']}{n:>2}{C['rst']}  " if n != "" else ""
+    if mark in OPEN:
+        tcol = f"{C['blue']}{tm}{C['rst']} " if tm else ""
+        if PRIO in body:
+            body = f"{C['b']}{body.replace(PRIO, '').strip()}{C['rst']} {C['red']}{PRIO}{C['rst']}"
+        return f"{num}{color}{label}{C['rst']} {tcol}{body}"
+    return f"{num}{color}{label} {(tm + ' ') if tm else ''}{body}{C['rst']}"
+
+
+def show(day):
+    _, lines = load(day)
+    ts = tasks(lines)
+    today = dt.date.today()
+    names = {today: "сегодня", today + dt.timedelta(days=1): "завтра", today - dt.timedelta(days=1): "вчера"}
+    left = sum(1 for _, s, _ in ts if s in OPEN)
+    print(f"{C['b']}{names.get(day, f'{day:%d.%m}')}{C['rst']} "
+          f"{C['dim']}{WD[day.weekday()]} {day:%d.%m} · открыто {left} из {len(ts)}{C['rst']}")
+    if not ts:
+        print(f"{C['dim']}    задач нет · t add текст{C['rst']}")
+    for n, (_, mark, text) in enumerate(ts, 1):
+        print(fmt(n, mark, text))
+
+
+def pick(lines, nums):
+    ts = tasks(lines)
+    if not nums:
+        die("укажи номер задачи (из списка t)")
+    out = []
+    for a in nums:
+        if not a.isdigit() or not 1 <= int(a) <= len(ts):
+            die(f"нет задачи №{a} (всего {len(ts)})")
+        out.append(ts[int(a) - 1])
+    return out
+
+
+def set_line(lines, i, mark=None, text=None):
+    m = TASK.match(lines[i])
+    lines[i] = f"{m.group(1)}- [{m.group(2) if mark is None else mark}] {m.group(3) if text is None else text}"
+
+
+def with_time(words):
+    if re.fullmatch(r"\d{1,2}:\d{2}", words[0]) and len(words) > 1:
+        h, mi = words[0].split(":")
+        return f"{int(h):02d}:{mi} " + " ".join(words[1:])
+    return " ".join(words)
+
+
+def add(day, words):
+    if not words:
+        die("что добавить? t add [ЧЧ:ММ] текст")
+    p, lines = load(day, create=True)
+    lines = [l for l in lines if not re.match(r"^\s*- \[ \]\s*$", l)]  # template's empty "- [ ]"
+    head = CFG["TASKS_HEADING"].strip().lower()
+    try:
+        sec = next(i for i, l in enumerate(lines) if l.strip().lower() == head)
+    except StopIteration:
+        lines += ["", CFG["TASKS_HEADING"]]
+        sec = len(lines) - 1
+    pos = sec + 1
+    while pos < len(lines) and TASK.match(lines[pos]):
+        pos += 1
+    lines.insert(pos, f"- [ ] {with_time(words).strip()}")
+    save(p, lines)
+
+
+def week():
+    today = dt.date.today()
+    for k in range(7):
+        d = today + dt.timedelta(days=k)
+        _, lines = load(d)
+        ts = [t for t in tasks(lines) if t[1] in OPEN]
+        name = ["сегодня", "завтра"][k] if k < 2 else WD[d.weekday()]
+        print(f"{C['b']}{name:<8}{C['rst']}{C['dim']}{d:%d.%m}  {len(ts) or '—'}{C['rst']}")
+        for _, mark, text in ts:
+            print("    " + fmt("", mark, text))
+
+
+def find(words):
+    q, hits = " ".join(words).lower(), 0
+    skip = re.compile(r"/\.obsidian/|/" + re.escape(os.path.dirname(CFG["DAILY_TEMPLATE"]) or "templates") + "/")
+    for root, _, files in os.walk(VAULT):
+        for f in files:
+            p = os.path.join(root, f)
+            if not f.endswith(".md") or skip.search(p):
+                continue
+            for l in open(p, encoding="utf-8", errors="ignore"):
+                m = TASK.match(l.rstrip("\n"))
+                if m and m.group(2) in OPEN and m.group(3).strip() and q in m.group(3).lower():
+                    print(f"{fmt('', m.group(2), m.group(3).strip())}  {C['dim']}{os.path.relpath(p, VAULT)[:-3]}{C['rst']}")
+                    hits += 1
+    if not hits:
+        print(f"{C['dim']}ничего не нашлось{C['rst']}")
+
+
+# ── commands ──────────────────────────────────────────────────────────────
+MARKS = {"done": "x", "x": "x", "undo": " ", "u": " ", "start": "/", "s": "/", "cancel": "-", "c": "-"}
+
+
+def edit_lines(day, nums, fn):
+    p, lines = load(day)
+    for i, mark, text in sorted(pick(lines, nums), reverse=True):
+        fn(lines, i, mark, text)
+    save(p, lines)
+    show(day)
+
+
+def main(argv):
+    day, rest = dt.date.today(), []
+    for a in argv:                                   # @day anywhere in the args
+        d = parse_day(a) if a.startswith("@") else None
+        day, rest = (d, rest) if d else (day, rest + [a])
+    if not rest:
+        return show(day)
+    cmd, args = rest[0], rest[1:]
+    if not args and (d := parse_day(cmd)):
+        return show(d)
+
+    if cmd in ("ls", "list"):
+        show(parse_day(args[0]) or day if args else day)
+    elif cmd == "week":
+        week()
+    elif cmd in ("add", "a"):
+        add(day, args); show(day)
+    elif cmd in ("tom", "tomorrow"):
+        tom = dt.date.today() + dt.timedelta(days=1)
+        args and add(tom, args); show(tom)
+    elif cmd in MARKS:
+        edit_lines(day, args, lambda L, i, m, t: set_line(L, i, mark=MARKS[cmd]))
+    elif cmd in ("rm", "del"):
+        edit_lines(day, args, lambda L, i, m, t: L.__delitem__(i))
+    elif cmd == "prio":
+        edit_lines(day, args, lambda L, i, m, t: set_line(L, i, text=t.replace(PRIO, "").strip() if PRIO in t else f"{t} {PRIO}"))
+    elif cmd == "mv":
+        target = parse_day(args[1]) if len(args) > 1 else dt.date.today() + dt.timedelta(days=1)
+        if not target:
+            die(f"не понял день «{args[1]}»")
+        p, lines = load(day)
+        (i, _, text), = pick(lines, args[:1])
+        set_line(lines, i, mark=">"); save(p, lines)
+        add(target, text.split())
+        print(f"{C['dim']}перенесено на {target:%d.%m}{C['rst']}"); show(day)
+    elif cmd == "at":
+        if len(args) != 2 or not (args[1] == "-" or re.fullmatch(r"\d{1,2}:\d{2}", args[1])):
+            die("t at N ЧЧ:ММ   или   t at N -")
+        edit_lines(day, args[:1], lambda L, i, m, t: set_line(
+            L, i, text=TIME.sub("", t) if args[1] == "-" else with_time([args[1], TIME.sub("", t)])))
+    elif cmd == "rename":
+        if len(args) < 2:
+            die("t rename N новый текст")
+        edit_lines(day, args[:1], lambda L, i, m, t: set_line(
+            L, i, text=((TIME.match(t).group(0)) if TIME.match(t) else "") + " ".join(args[1:])))
+    elif cmd == "find":
+        find(args)
+    elif cmd == "edit":
+        p, _ = load(day, create=True)
+        subprocess.call([os.environ.get("EDITOR", "nano"), p])
+    elif cmd == "open":
+        load(day, create=True)
+        f = urllib.parse.quote(f"{CFG['DAILY_DIR']}/{day:%Y-%m-%d}")
+        uri = f"obsidian://open?vault={urllib.parse.quote(CFG['VAULT_NAME'])}&file={f}"
+        opener = "/mnt/c/Windows/explorer.exe" if os.path.exists("/mnt/c/Windows/explorer.exe") else "xdg-open"
+        subprocess.call([opener, uri])
+    elif cmd == "config":
+        print(f"{C['b']}{CONFIG}{C['rst']}" + ("" if os.path.exists(CONFIG) else f"  {C['red']}(нет файла — значения по умолчанию){C['rst']}"))
+        for k in ("VAULT", "VAULT_NAME", "DAILY_DIR", "DAILY_TEMPLATE", "TASKS_HEADING"):
+            print(f"  {k:<15}{C['dim']}{CFG[k]}{C['rst']}")
+    elif cmd in ("-h", "--help", "help", "h"):
+        print(help_text())
+    else:
+        die(f"не знаю команду «{cmd}» · t help")
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

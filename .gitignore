@@ -1,0 +1,6 @@
+# personal settings and runtime files never go in the repo
+widgets.config.json
+*.log
+*.bak-*
+__pycache__/
+windows/widgets/fonts/
