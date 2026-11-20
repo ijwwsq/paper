@@ -102,7 +102,7 @@ $ps.Runspace = $rs
                 }
                 $t = ([regex]::Replace($t, $mark, '')).Trim()
                 if ($t -match '^(\d{1,2}:\d{2})(?:\s*[-–]\s*\d{1,2}:\d{2})?\s*(.*)$') { $time = $Matches[1]; $t = $Matches[2] }
-                $t = ($t -replace '\[\[|\]\]', '' -replace '(^|\s)#[\w/-]+', '').Trim()
+                $t = ($t -replace '\s*\[(started|spent)::[^\]]*\]', '' -replace '\s*✅\s*\d{4}-\d{2}-\d{2}', '' -replace '\[\[|\]\]', '' -replace '(^|\s)#[\w/-]+', '').Trim()   # hide t's time fields
                 if (-not $t) { continue }
                 $byMark = [bool]$d
                 if (-not $d -and $fileDay -and ($fileDay -gt $today -or ($fileDay -eq $today -and $time))) { $d = $fileDay }

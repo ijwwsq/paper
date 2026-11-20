@@ -34,12 +34,25 @@ greet() {
   while read -r k v rest; do mi[${k%:}]=$v; done < /proc/meminfo
   local used=$(( (mi[MemTotal] - mi[MemAvailable]) / 1024 )) total=$(( mi[MemTotal] / 1024 ))
 
-  # open tasks of today: [ ] todo and [/] in progress
-  local note="$VAULT/$DAILY_DIR/$(strftime '%Y-%m-%d' $EPOCHSECONDS).md" line
+  # open tasks of today: [ ] todo and [/] in progress; `t` time fields are hidden, a running timer is shown
+  setopt extended_glob
+  local note="$VAULT/$DAILY_DIR/$(strftime '%Y-%m-%d' $EPOCHSECONDS).md" line body st sp run=""
   local -a tasks
   if [[ -n $VAULT && -r $note ]]; then
     while IFS= read -r line; do
-      [[ $line =~ '^[[:space:]]*- \[[ /]\][[:space:]]*(.+)$' ]] && tasks+=("${match[1]}")
+      [[ $line =~ '^[[:space:]]*- \[[ /]\][[:space:]]*(.+)$' ]] || continue
+      body=${match[1]} st="" sp=0
+      [[ $body =~ '\[started:: ([0-9T:-]+)\]' ]] && st=${match[1]}
+      [[ $body =~ '\[spent:: ([0-9]+)h' ]] && (( sp += match[1] * 60 ))
+      [[ $body =~ '\[spent:: ([^]]*[^0-9])?([0-9]+)m' ]] && (( sp += match[2] ))
+      body=${${body//\[(started|spent)::[^\]]#\]/}%% #}
+      if [[ -n $st ]]; then
+        local s0; strftime -r -s s0 '%Y-%m-%dT%H:%M' $st 2>/dev/null && (( sp += (EPOCHSECONDS - s0) / 60 ))
+        run="%F{4}▶ ${body[1,40]} · $(( sp / 60 ))ч $(( sp % 60 ))м%f"
+        run=${run/ 0ч / }
+      else
+        tasks+=("$body")
+      fi
     done < "$note"
   fi
 
@@ -48,6 +61,7 @@ greet() {
     "%F{8}up $((up / 86400))d $((up % 86400 / 3600))h $((up % 3600 / 60))m · mem ${used}M / ${total}M%f"
     ""
   )
+  [[ -n $run ]] && info+=("$run")
   if (( $#tasks )); then
     info+=("%F{4}сегодня:%f")
     local t; for t in "${(@)tasks[1,GREET_TASKS]}"; do info+=("%F{8}·%f ${t[1,48]}"); done

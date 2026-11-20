@@ -25,8 +25,8 @@ info = [
     [("19 ноября, четверг · 09:41", b, True)],
     [("up 2d 4h 12m · mem 2310M / 7728M", d, False)],
     [],
+    [("▶ ревью пулреквестов · 25м", bl, False)],
     [("сегодня:", bl, False)],
-    [("· ", d, False), ("ревью пулреквестов", "fg", False)],
     [("· ", d, False), ("14:00 созвон по релизу", "fg", False)],
     [("· ", d, False), ("дописать README", "fg", False)],
 ]
@@ -37,15 +37,19 @@ for i in range(max(len(art), len(info))):
 lines += [
     [],
     L("~ $ ", ("t", "fg", True)),
-    [("сегодня", b, True), (" чт 19.11 · открыто 3 из 4", d, False)],
-    [(" 1  ", d, False), ("[/]", bl, False), (" ревью пулреквестов", "fg", False)],
+    [("сегодня", b, True), (" чт 19.11 · открыто 3 из 4 · 1ч 5м в работе", d, False)],
+    [(" 1  ", d, False), ("[/]", bl, False), (" ревью пулреквестов", "fg", False), (" ▶ 25м", bl, False)],
     [(" 2  ", d, False), ("[ ] ", "fg", False), ("14:00", bl, False), (" созвон по релизу", "fg", False)],
     [(" 3  ", d, False), ("[ ] ", "fg", False), ("дописать README", "fg", True), (" ↑", r, True)],
-    [(" 4  [x] разобрать почту", d, False)],
+    [(" 4  [x] разобрать почту", d, False), (" · 40м", d, False)],
     [],
-    L("~ $ ", ("t add 18:00 выкатить paper", "fg", False)),
-    [("сегодня", b, True), (" чт 19.11 · открыто 4 из 5", d, False)],
-    [(" …", d, False)],
+    L("~ $ ", ("t done ревью", "fg", False)),
+    [("готово", "green", False), (" ревью пулреквестов", "fg", False), (" · за 25м", d, False)],
+    [],
+    L("~ $ ", ("t report", "fg", False)),
+    [("   40м  ", "fg", False), ("█" * 12 + " " * 8, d, False), ("  разобрать почту", "fg", False)],
+    [("   25м  ", "fg", False), ("█" * 8 + " " * 12, d, False), ("  ревью пулреквестов", "fg", False)],
+    [(" 1ч 5м  ", "fg", True), ("всего", d, False)],
     [],
     L("~ $ ", ("█", "dim", False)),
 ]
@@ -59,6 +63,8 @@ dr = ImageDraw.Draw(img)
 # tmux tab bar
 dr.text((padx, 14), " 1 ~ ", font=bold, fill=FG)
 dr.text((padx + cw * 6, 14), " 2 paper  3 notes", font=reg, fill=PAL["dim"])
+st = "▶ ревью пулреквестов 25м"
+dr.text((W - padx - cw * (len(st) + 6), 14), st, font=reg, fill=PAL["blue"])
 dr.text((W - padx - cw * 4, 14), "main", font=reg, fill=PAL["dim"])
 dr.line((0, bar - 6, W, bar - 6), fill=PAL["rule"], width=2)
 y = bar + pady

@@ -4,6 +4,7 @@ import datetime as dt
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 import urllib.parse
@@ -33,12 +34,15 @@ CFG = read_config(CONFIG)
 VAULT = os.path.expanduser(CFG["VAULT"])
 TASK = re.compile(r"^(\s*)- \[(.)\]\s*(.*)$")
 TIME = re.compile(r"^(\d{1,2}:\d{2})(?:\s*[-–]\s*\d{1,2}:\d{2})?\s+")
+FIELD = re.compile(r"\s*\[(started|spent)::\s*([^\]]*)\]")
+DONE_DATE = re.compile(r"\s*✅\s*\d{4}-\d{2}-\d{2}")
 PRIO = "⏫"
 
 # ── look ──────────────────────────────────────────────────────────────────
-C = dict(dim="\033[90m", blue="\033[34m", red="\033[31m", yel="\033[33m",
+TTY = sys.stdout.isatty() or bool(os.environ.get("FORCE_COLOR"))
+C = dict(dim="\033[90m", blue="\033[34m", red="\033[31m", yel="\033[33m", green="\033[32m",
          b="\033[1m", strike="\033[9m", rst="\033[0m")
-if not sys.stdout.isatty() and not os.environ.get("FORCE_COLOR"):
+if not TTY:
     C = {k: "" for k in C}
 
 STATUS = {  # Obsidian Tasks plugin markers
@@ -52,13 +56,15 @@ WD = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"]
 def help_text():
     d, b, bl, r = C["dim"], C["b"], C["blue"], C["rst"]
     return f"""
-{b}t{r} {d}— задачи Obsidian из терминала · заметки дня · статусы плагина Tasks{r}
+{b}t{r} {d}— задачи Obsidian из терминала · заметки дня · статусы плагина Tasks · учёт времени{r}
 
 {b}смотреть{r}
   t                     сегодня
   t tom · t yday        завтра · вчера
   t +3 · t 2026-12-01   через 3 дня · конкретная дата
   t week                ближайшие 7 дней
+  t now                 что сейчас в работе и сколько тикает
+  t report {d}[день]{r}       куда ушло время
   t find {d}слово{r}           открытые задачи по всему волту
 
 {b}добавлять{r}
@@ -66,24 +72,78 @@ def help_text():
   t add {bl}16:00{r} {d}текст{r}       со временем {d}→ напоминание за 15 мин (виджеты){r}
   t add @tom {d}текст{r}        на другой день {d}(@tom @+2 @2026-12-01){r}
   t tom {d}текст{r}             коротко: на завтра
+  t rollover            перенести вчерашние незакрытые на сегодня
 
-{b}статусы{r}                {d}N — номер из списка, можно несколько: t done 1 3{r}
-  t done N        [x] готово          t start N     {bl}[/]{r} в работе
-  t undo N        [ ] вернуть         t cancel N    {d}[-]{r} отменено
-  t mv N {d}[день]{r}    {d}[>]{r} перенести {d}(по умолчанию на завтра){r}
+{b}работать{r}                {d}задачу можно указать номером, куском текста или не указывать — тогда выбор через fzf{r}
+  t start {d}N{r}       {bl}[/]{r} начать — пошёл таймер {d}(прошлая задача встанет на паузу){r}
+  t pause {d}N{r}       [ ] пауза — время копится
+  t done {d}N{r}        [x] готово — допишет, сколько ушло, и ✅ дату
+  t cancel {d}N{r}      {d}[-]{r} отменено        t undo {d}N{r}   [ ] вернуть
+  t mv {d}N [день]{r}   {d}[>]{r} перенести {d}(по умолчанию на завтра){r}
 
 {b}править{r}
-  t at N {bl}18:30{r}      поставить время     t at N -      убрать время
+  t at N {bl}18:30{r}      время              t at N -      убрать время
   t prio N        {C['red']}⏫{r} приоритет      t rename N {d}текст{r}
   t rm N          удалить
 
 {b}прочее{r}
-  t open          заметка в Obsidian  t edit        в $EDITOR
-  t config        где лежит конфиг и что в нём
+  t open · t edit       заметка в Obsidian · в $EDITOR
+  t status              одна строка для tmux {d}(▶ задача 25м){r}
+  t config              где конфиг и что в нём
 
-{d}к любой команде можно приписать день: t done 2 @yday · t rm 1 @tom{r}
-{d}конфиг: {CONFIG}{r}
+{d}примеры: t start форм · t done · t done 2 @yday · t report yday{r}
+{d}время хранится в задаче полями [started:: …] и [spent:: 1h 10m] — их понимает Dataview{r}
 """
+
+
+# ── time helpers ──────────────────────────────────────────────────────────
+def now():
+    return dt.datetime.now().replace(second=0, microsecond=0)
+
+
+def parse_dur(s):
+    m = re.fullmatch(r"\s*(?:(\d+)\s*h)?\s*(?:(\d+)\s*m)?\s*", s or "")
+    return (int(m.group(1) or 0) * 60 + int(m.group(2) or 0)) if m else 0
+
+
+def store_dur(mins):
+    h, m = divmod(max(0, int(mins)), 60)
+    return f"{h}h {m}m" if h and m else f"{h}h" if h else f"{m}m"
+
+
+def show_dur(mins):
+    h, m = divmod(max(0, int(mins)), 60)
+    if not h and not m:
+        return "<1м"
+    return f"{h}ч {m}м" if h and m else f"{h}ч" if h else f"{m}м"
+
+
+def fields(text):
+    f = {k: v.strip() for k, v in FIELD.findall(text)}
+    clean = DONE_DATE.sub("", FIELD.sub("", text)).strip()
+    return clean, f
+
+
+def compose(clean, spent=0, started=None, done_date=None):
+    out = clean
+    if spent:
+        out += f" [spent:: {store_dur(spent)}]"
+    if started:
+        out += f" [started:: {started:%Y-%m-%dT%H:%M}]"
+    if done_date:
+        out += f" ✅ {done_date:%Y-%m-%d}"
+    return out
+
+
+def spent_now(f):
+    """total minutes incl. the running stretch"""
+    total = parse_dur(f.get("spent"))
+    if f.get("started"):
+        try:
+            total += (now() - dt.datetime.fromisoformat(f["started"])).total_seconds() // 60
+        except ValueError:
+            pass
+    return int(total)
 
 
 # ── notes ─────────────────────────────────────────────────────────────────
@@ -110,8 +170,10 @@ def note_path(day):
     return os.path.join(VAULT, CFG["DAILY_DIR"], f"{day:%Y-%m-%d}.md")
 
 
-def load(day, create=False):
+def load(day, create=False, quiet=False):
     if not os.path.isdir(VAULT):
+        if quiet:
+            return None, []
         die(f"волт не найден: {VAULT}\nпропиши VAULT в {CONFIG}")
     p = note_path(day)
     if not os.path.exists(p):
@@ -134,60 +196,214 @@ def tasks(lines):
             for i, l in enumerate(lines) if (m := TASK.match(l)) and m.group(3).strip()]
 
 
+def set_line(lines, i, mark=None, text=None):
+    m = TASK.match(lines[i])
+    lines[i] = f"{m.group(1)}- [{m.group(2) if mark is None else mark}] {m.group(3) if text is None else text}"
+
+
 def fmt(n, mark, text):
     label, color = STATUS.get(mark, (f"[{mark}]", ""))
-    m = TIME.match(text)
-    body, tm = (text[m.end():], m.group(1)) if m else (text, "")
+    clean, f = fields(text)
+    m = TIME.match(clean)
+    body, tm = (clean[m.end():], m.group(1)) if m else (clean, "")
     num = f"{C['dim']}{n:>2}{C['rst']}  " if n != "" else ""
+    mins = spent_now(f)
+    if f.get("started"):
+        timer = f" {C['blue']}▶ {show_dur(mins)}{C['rst']}"
+    elif mins:
+        timer = f" {C['dim']}· {show_dur(mins)}{C['rst']}"
+    else:
+        timer = ""
     if mark in OPEN:
         tcol = f"{C['blue']}{tm}{C['rst']} " if tm else ""
         if PRIO in body:
             body = f"{C['b']}{body.replace(PRIO, '').strip()}{C['rst']} {C['red']}{PRIO}{C['rst']}"
-        return f"{num}{color}{label}{C['rst']} {tcol}{body}"
-    return f"{num}{color}{label} {(tm + ' ') if tm else ''}{body}{C['rst']}"
+        return f"{num}{color}{label}{C['rst']} {tcol}{body}{timer}"
+    return f"{num}{color}{label} {(tm + ' ') if tm else ''}{body}{C['rst']}{timer}"
+
+
+def day_name(day):
+    today = dt.date.today()
+    return {today: "сегодня", today + dt.timedelta(days=1): "завтра",
+            today - dt.timedelta(days=1): "вчера"}.get(day, f"{day:%d.%m}")
 
 
 def show(day):
     _, lines = load(day)
     ts = tasks(lines)
-    today = dt.date.today()
-    names = {today: "сегодня", today + dt.timedelta(days=1): "завтра", today - dt.timedelta(days=1): "вчера"}
     left = sum(1 for _, s, _ in ts if s in OPEN)
-    print(f"{C['b']}{names.get(day, f'{day:%d.%m}')}{C['rst']} "
-          f"{C['dim']}{WD[day.weekday()]} {day:%d.%m} · открыто {left} из {len(ts)}{C['rst']}")
+    total = sum(spent_now(fields(t)[1]) for _, _, t in ts)
+    extra = f" · {show_dur(total)} в работе" if total else ""
+    print(f"{C['b']}{day_name(day)}{C['rst']} "
+          f"{C['dim']}{WD[day.weekday()]} {day:%d.%m} · открыто {left} из {len(ts)}{extra}{C['rst']}")
     if not ts:
         print(f"{C['dim']}    задач нет · t add текст{C['rst']}")
     for n, (_, mark, text) in enumerate(ts, 1):
         print(fmt(n, mark, text))
 
 
-def pick(lines, nums):
+# ── picking a task: number, piece of text, or fzf ─────────────────────────
+def pick(lines, args, allow=None, many=True):
     ts = tasks(lines)
-    if not nums:
-        die("укажи номер задачи (из списка t)")
+    cand = [(n, t) for n, t in enumerate(ts, 1) if allow is None or t[1] in allow]
+    if args and all(a.isdigit() for a in args):
+        out = []
+        for a in args:
+            if not 1 <= int(a) <= len(ts):
+                die(f"нет задачи №{a} (всего {len(ts)})")
+            out.append(ts[int(a) - 1])
+        return out if many else out[:1]
+    if args:                                            # by text
+        q = " ".join(args).lower()
+        cand = [(n, t) for n, t in cand if q in fields(t[2])[0].lower()]
+        if len(cand) == 1:
+            return [cand[0][1]]
+        if not cand:
+            die(f"не нашёл задачу «{' '.join(args)}»")
+    if not cand:
+        die("подходящих задач нет")
+    if len(cand) == 1 and not args:
+        return [cand[0][1]]
+    if shutil.which("fzf") and sys.stdin.isatty():      # choose interactively
+        menu = "\n".join(f"{n}\t{fmt('', t[1], t[2])}" for n, t in cand)
+        r = subprocess.run(["fzf", "--ansi", "--height=40%", "--reverse", "--with-nth=2..",
+                            "--delimiter=\t", "--prompt=задача › ", "--info=hidden"]
+                           + (["--multi"] if many else []),
+                           input=menu, text=True, stdout=subprocess.PIPE, env={**os.environ, "FORCE_COLOR": "1"})
+        chosen = [int(l.split("\t", 1)[0]) for l in r.stdout.splitlines() if l.strip()]
+        if not chosen:
+            sys.exit(0)
+        return [ts[n - 1] for n in chosen]
+    die("уточни: " + " · ".join(f"{n} {fields(t[2])[0][:30]}" for n, t in cand[:6]))
+
+
+def edit_tasks(day, args, fn, allow=None, many=True, quiet=False):
+    p, lines = load(day)
+    picked = pick(lines, args, allow, many)
+    for i, mark, text in sorted(picked, reverse=True):
+        fn(lines, i, mark, text)
+    save(p, lines)
+    if not quiet:
+        show(day)
+    return picked
+
+
+def stop_timer(lines, i, mark_to):
+    """close the running stretch: fold it into [spent::], drop [started::]"""
+    _, mark, text = next(t for t in tasks(lines) if t[0] == i)
+    clean, f = fields(text)
+    set_line(lines, i, mark=mark_to, text=compose(clean, spent_now(f)))
+    return spent_now(f)
+
+
+# ── commands ──────────────────────────────────────────────────────────────
+def cmd_start(day, args):
+    p, lines = load(day)
+    picked = pick(lines, args, allow={" ", "/", "!", "?"}, many=False)
+    i, _, text = picked[0]
+    for j, mark, t in tasks(lines):                    # one timer at a time
+        if j != i and fields(t)[1].get("started"):
+            stop_timer(lines, j, " ")
+            print(f"{C['dim']}на паузе: {fields(t)[0]}{C['rst']}")
+    clean, f = fields(text)
+    if f.get("started"):
+        print(f"{C['dim']}уже идёт: {show_dur(spent_now(f))}{C['rst']}")
+    else:
+        set_line(lines, i, mark="/", text=compose(clean, parse_dur(f.get("spent")), now()))
+    save(p, lines)
+    show(day)
+
+
+def cmd_finish(day, args, mark):
+    p, lines = load(day)
+    picked = pick(lines, args, allow=OPEN)
+    for i, _, text in sorted(picked, reverse=True):
+        clean, f = fields(text)
+        mins = spent_now(f)
+        set_line(lines, i, mark=mark, text=compose(clean, mins, done_date=dt.date.today() if mark == "x" else None))
+        if mark == "x" and mins:
+            print(f"{C['green']}готово{C['rst']} {clean} {C['dim']}· за {show_dur(mins)}{C['rst']}")
+    save(p, lines)
+    show(day)
+
+
+def cmd_pause(day, args):
+    p, lines = load(day)
+    running = [t for t in tasks(lines) if fields(t[2])[1].get("started")]
+    picked = pick(lines, args, allow=None, many=False) if args else running[:1]
+    if not picked:
+        die("сейчас ничего не идёт")
+    i, _, text = picked[0]
+    mins = stop_timer(lines, i, " ")
+    save(p, lines)
+    print(f"{C['dim']}пауза · накоплено {show_dur(mins)}{C['rst']}")
+    show(day)
+
+
+def running_tasks(days=(0, -1)):
     out = []
-    for a in nums:
-        if not a.isdigit() or not 1 <= int(a) <= len(ts):
-            die(f"нет задачи №{a} (всего {len(ts)})")
-        out.append(ts[int(a) - 1])
+    for k in days:
+        d = dt.date.today() + dt.timedelta(days=k)
+        _, lines = load(d, quiet=True)
+        for _, mark, text in tasks(lines):
+            clean, f = fields(text)
+            if f.get("started"):
+                out.append((d, clean, spent_now(f), f["started"]))
     return out
 
 
-def set_line(lines, i, mark=None, text=None):
-    m = TASK.match(lines[i])
-    lines[i] = f"{m.group(1)}- [{m.group(2) if mark is None else mark}] {m.group(3) if text is None else text}"
+def cmd_now():
+    run = running_tasks()
+    if not run:
+        print(f"{C['dim']}сейчас ничего не идёт · t start{C['rst']}")
+        return
+    for d, clean, mins, started in run:
+        when = started[11:16]
+        tail = "" if d == dt.date.today() else f" {C['dim']}({day_name(d)}){C['rst']}"
+        print(f"{C['blue']}▶{C['rst']} {C['b']}{clean}{C['rst']} {C['blue']}{show_dur(mins)}{C['rst']} "
+              f"{C['dim']}· с {when}{C['rst']}{tail}")
 
 
-def with_time(words):
-    if re.fullmatch(r"\d{1,2}:\d{2}", words[0]) and len(words) > 1:
-        h, mi = words[0].split(":")
-        return f"{int(h):02d}:{mi} " + " ".join(words[1:])
-    return " ".join(words)
+def cmd_status():
+    """for tmux status-right: never fails, prints nothing when idle"""
+    try:
+        run = running_tasks(days=(0,))
+        if run:
+            _, clean, mins, _ = run[0]
+            clean = TIME.sub("", clean).replace(PRIO, "").strip()
+            print(f"▶ {clean[:28] + ('…' if len(clean) > 28 else '')} {show_dur(mins)}")
+    except Exception:
+        pass
+
+
+def cmd_report(day):
+    _, lines = load(day)
+    rows = []
+    for _, mark, text in tasks(lines):
+        clean, f = fields(text)
+        mins = spent_now(f)
+        if mins or f.get("started"):
+            rows.append((mins, mark, TIME.sub("", clean), bool(f.get("started"))))
+    print(f"{C['b']}{day_name(day)}{C['rst']} {C['dim']}{WD[day.weekday()]} {day:%d.%m} · учёт времени{C['rst']}")
+    if not rows:
+        print(f"{C['dim']}    пусто · t start, когда берёшься за задачу{C['rst']}")
+        return
+    total = sum(r[0] for r in rows)
+    width = max(len(show_dur(r[0])) for r in rows)
+    for mins, mark, clean, live in sorted(rows, reverse=True):
+        bar = "█" * max(1, round(mins / max(total, 1) * 20))
+        col = C["blue"] if live else (C["dim"] if mark in ("x", "X") else "")
+        print(f"  {show_dur(mins):>{width}}  {col}{bar:<20}{C['rst']}  {clean}{' ▶' if live else ''}")
+    print(f"  {C['b']}{show_dur(total):>{width}}{C['rst']}  {C['dim']}всего{C['rst']}")
 
 
 def add(day, words):
     if not words:
         die("что добавить? t add [ЧЧ:ММ] текст")
+    text = " ".join(words)
+    if re.fullmatch(r"\d{1,2}:\d{2}", words[0]) and len(words) > 1:
+        h, mi = words[0].split(":")
+        text = f"{int(h):02d}:{mi} " + " ".join(words[1:])
     p, lines = load(day, create=True)
     lines = [l for l in lines if not re.match(r"^\s*- \[ \]\s*$", l)]  # template's empty "- [ ]"
     head = CFG["TASKS_HEADING"].strip().lower()
@@ -199,8 +415,28 @@ def add(day, words):
     pos = sec + 1
     while pos < len(lines) and TASK.match(lines[pos]):
         pos += 1
-    lines.insert(pos, f"- [ ] {with_time(words).strip()}")
+    lines.insert(pos, f"- [ ] {text.strip()}")
     save(p, lines)
+
+
+def move(day, picked_lines, p, lines, target):
+    for i, _, text in sorted(picked_lines, reverse=True):
+        clean, f = fields(text)
+        mins = spent_now(f)
+        set_line(lines, i, mark=">", text=compose(clean, mins))
+        add(target, compose(clean, mins).split())
+    save(p, lines)
+
+
+def cmd_rollover(src):
+    p, lines = load(src)
+    left = [t for t in tasks(lines) if t[1] in OPEN]
+    if not left:
+        print(f"{C['dim']}{day_name(src)} всё закрыто — переносить нечего{C['rst']}")
+        return
+    move(src, left, p, lines, dt.date.today())
+    print(f"{C['dim']}перенесено с {day_name(src)}: {len(left)}{C['rst']}")
+    show(dt.date.today())
 
 
 def week():
@@ -225,23 +461,11 @@ def find(words):
                 continue
             for l in open(p, encoding="utf-8", errors="ignore"):
                 m = TASK.match(l.rstrip("\n"))
-                if m and m.group(2) in OPEN and m.group(3).strip() and q in m.group(3).lower():
+                if m and m.group(2) in OPEN and m.group(3).strip() and q in fields(m.group(3))[0].lower():
                     print(f"{fmt('', m.group(2), m.group(3).strip())}  {C['dim']}{os.path.relpath(p, VAULT)[:-3]}{C['rst']}")
                     hits += 1
     if not hits:
         print(f"{C['dim']}ничего не нашлось{C['rst']}")
-
-
-# ── commands ──────────────────────────────────────────────────────────────
-MARKS = {"done": "x", "x": "x", "undo": " ", "u": " ", "start": "/", "s": "/", "cancel": "-", "c": "-"}
-
-
-def edit_lines(day, nums, fn):
-    p, lines = load(day)
-    for i, mark, text in sorted(pick(lines, nums), reverse=True):
-        fn(lines, i, mark, text)
-    save(p, lines)
-    show(day)
 
 
 def main(argv):
@@ -264,31 +488,54 @@ def main(argv):
     elif cmd in ("tom", "tomorrow"):
         tom = dt.date.today() + dt.timedelta(days=1)
         args and add(tom, args); show(tom)
-    elif cmd in MARKS:
-        edit_lines(day, args, lambda L, i, m, t: set_line(L, i, mark=MARKS[cmd]))
+    elif cmd in ("start", "s"):
+        cmd_start(day, args)
+    elif cmd in ("pause", "p", "stop"):
+        cmd_pause(day, args)
+    elif cmd in ("done", "x", "d"):
+        cmd_finish(day, args, "x")
+    elif cmd in ("cancel", "c"):
+        cmd_finish(day, args, "-")
+    elif cmd in ("undo", "u"):
+        edit_tasks(day, args, lambda L, i, m, t: set_line(L, i, mark=" ", text=DONE_DATE.sub("", t).strip()),
+                   allow={"x", "X", "-", ">", "/"})
     elif cmd in ("rm", "del"):
-        edit_lines(day, args, lambda L, i, m, t: L.__delitem__(i))
+        edit_tasks(day, args, lambda L, i, m, t: L.__delitem__(i))
     elif cmd == "prio":
-        edit_lines(day, args, lambda L, i, m, t: set_line(L, i, text=t.replace(PRIO, "").strip() if PRIO in t else f"{t} {PRIO}"))
+        edit_tasks(day, args, lambda L, i, m, t: set_line(L, i, text=t.replace(PRIO, "").strip() if PRIO in t else f"{t} {PRIO}"))
     elif cmd == "mv":
-        target = parse_day(args[1]) if len(args) > 1 else dt.date.today() + dt.timedelta(days=1)
-        if not target:
-            die(f"не понял день «{args[1]}»")
+        target = parse_day(args[-1]) if len(args) > 1 and parse_day(args[-1]) else dt.date.today() + dt.timedelta(days=1)
+        sel = args[:-1] if len(args) > 1 and parse_day(args[-1]) else args
         p, lines = load(day)
-        (i, _, text), = pick(lines, args[:1])
-        set_line(lines, i, mark=">"); save(p, lines)
-        add(target, text.split())
-        print(f"{C['dim']}перенесено на {target:%d.%m}{C['rst']}"); show(day)
+        move(day, pick(lines, sel, allow=OPEN), p, lines, target)
+        print(f"{C['dim']}перенесено на {day_name(target)}{C['rst']}"); show(day)
+    elif cmd == "rollover":
+        cmd_rollover(parse_day(args[0]) if args and parse_day(args[0]) else dt.date.today() - dt.timedelta(days=1))
     elif cmd == "at":
         if len(args) != 2 or not (args[1] == "-" or re.fullmatch(r"\d{1,2}:\d{2}", args[1])):
             die("t at N ЧЧ:ММ   или   t at N -")
-        edit_lines(day, args[:1], lambda L, i, m, t: set_line(
-            L, i, text=TIME.sub("", t) if args[1] == "-" else with_time([args[1], TIME.sub("", t)])))
+        def at(L, i, m, t):
+            t = TIME.sub("", t)
+            if args[1] != "-":
+                h, mi = args[1].split(":"); t = f"{int(h):02d}:{mi} {t}"
+            set_line(L, i, text=t)
+        edit_tasks(day, args[:1], at, many=False)
     elif cmd == "rename":
         if len(args) < 2:
             die("t rename N новый текст")
-        edit_lines(day, args[:1], lambda L, i, m, t: set_line(
-            L, i, text=((TIME.match(t).group(0)) if TIME.match(t) else "") + " ".join(args[1:])))
+        def ren(L, i, m, t):
+            clean, f = fields(t)
+            tm = TIME.match(clean)
+            new = (tm.group(0) if tm else "") + " ".join(args[1:])
+            set_line(L, i, text=compose(new, parse_dur(f.get("spent")),
+                                        dt.datetime.fromisoformat(f["started"]) if f.get("started") else None))
+        edit_tasks(day, args[:1], ren, many=False)
+    elif cmd == "now":
+        cmd_now()
+    elif cmd == "status":
+        cmd_status()
+    elif cmd == "report":
+        cmd_report(parse_day(args[0]) or day if args else day)
     elif cmd == "find":
         find(args)
     elif cmd == "edit":
