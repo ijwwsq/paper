@@ -66,6 +66,8 @@ def help_text():
   t week                ближайшие 7 дней
   t now                 что сейчас в работе и сколько тикает
   t report {d}[день]{r}       куда ушло время
+  t report week · month за неделю · месяц {d}(prev — прошлые){r}
+  t stats {d}[month]{r}       закрыто, %, время, серия, лучший день
   t find {d}слово{r}          открытые задачи по всему волту
 
 {b}добавлять{r}
@@ -403,6 +405,166 @@ def cmd_report(day):
     print(f"  {C['b']}{show_dur(total):>{width}}{C['rst']}  {C['dim']}всего{C['rst']}")
 
 
+# ── periods: report week/month, stats ─────────────────────────────────────
+MONTHS = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август",
+          "сентябрь", "октябрь", "ноябрь", "декабрь"]
+SPARK = "▁▂▃▄▅▆▇█"
+
+
+def period(kind, shift=0):
+    """(start, end, title) for 'week' (mon–sun) or 'month'; shift -1 = previous one"""
+    today = dt.date.today()
+    if kind == "week":
+        start = today - dt.timedelta(days=today.weekday()) + dt.timedelta(weeks=shift)
+        end = start + dt.timedelta(days=6)
+        title = f"неделя {start:%d.%m} – {end:%d.%m}"
+    else:
+        y, m = today.year, today.month + shift
+        while m < 1:
+            y, m = y - 1, m + 12
+        start = dt.date(y, m, 1)
+        end = (dt.date(y + (m == 12), m % 12 + 1, 1) - dt.timedelta(days=1))
+        title = f"{MONTHS[m - 1]} {y}"
+    return start, end, title
+
+
+def collect(start, end):
+    """[(day, mark, key, mins, running)] for every task in the daily notes of the range"""
+    out, d = [], start
+    while d <= end:
+        _, lines = load(d, quiet=True)
+        for _, mark, text in tasks(lines):
+            clean, f = fields(text)
+            key = TIME.sub("", clean).replace(PRIO, "").strip()
+            mins = 0 if mark == ">" else spent_now(f)   # a moved task carries its time to the new day
+            out.append((d, mark, key, mins, bool(f.get("started"))))
+        d += dt.timedelta(days=1)
+    return out
+
+
+def bar(v, top, width=20):
+    return "█" * max(1, round(v / max(top, 1) * width)) if v else ""
+
+
+def parse_period(args):
+    kind = next((a for a in args if a in ("week", "month", "неделя", "месяц")), None)
+    kind = {"неделя": "week", "месяц": "month"}.get(kind, kind)
+    shift = -1 if any(a in ("prev", "last", "прошлая", "прошлый", "-1") for a in args) else 0
+    return kind, shift
+
+
+def cmd_report_period(kind, shift):
+    start, end, title = period(kind, shift)
+    rows = collect(start, end)
+    print(f"{C['b']}{title}{C['rst']} {C['dim']}· учёт времени{C['rst']}")
+    by_day, by_task, days_of = {}, {}, {}
+    for d, mark, key, mins, live in rows:
+        if mins:
+            by_day[d] = by_day.get(d, 0) + mins
+            by_task[key] = by_task.get(key, 0) + mins
+            days_of.setdefault(key, set()).add(d)
+    if not by_task:
+        print(f"{C['dim']}    пусто · t start, когда берёшься за задачу{C['rst']}")
+        return
+    total = sum(by_day.values())
+    print(f"\n{C['blue']}по дням{C['rst']}")
+    d, top = start, max(by_day.values())
+    while d <= min(end, dt.date.today()) or (kind == "week" and d <= end):
+        mins = by_day.get(d, 0)
+        mark = f"{C['b']}" if d == dt.date.today() else ""
+        print(f"  {mark}{WD[d.weekday()]} {d:%d.%m}{C['rst']}  {show_dur(mins) if mins else '—':>7}  {C['dim']}{bar(mins, top)}{C['rst']}")
+        d += dt.timedelta(days=1)
+        if kind == "month" and d > dt.date.today():
+            break
+    print(f"\n{C['blue']}по задачам{C['rst']}")
+    items = sorted(by_task.items(), key=lambda kv: -kv[1])
+    top = items[0][1]
+    for key, mins in items[:12]:
+        n = len(days_of[key])
+        days_txt = f" {C['dim']}· {n} дн.{C['rst']}" if n > 1 else ""
+        print(f"  {show_dur(mins):>7}  {C['dim']}{bar(mins, top):<20}{C['rst']}  {key}{days_txt}")
+    if len(items) > 12:
+        print(f"  {C['dim']}… и ещё {len(items) - 12}{C['rst']}")
+    print(f"\n  {C['b']}{show_dur(total):>7}{C['rst']}  {C['dim']}всего · {len(by_day)} дн. с учётом · в среднем {show_dur(total // max(len(by_day), 1))} в день{C['rst']}")
+
+
+def streak():
+    """consecutive days (back from today; today counts only if something is done) with ≥1 closed task"""
+    n, d = 0, dt.date.today()
+    for k in range(366):
+        _, lines = load(d, quiet=True)
+        done = any(m in ("x", "X") for _, m, _ in tasks(lines))
+        if done:
+            n += 1
+        elif k > 0:
+            break
+        d -= dt.timedelta(days=1)
+    return n
+
+
+def cmd_stats(kind, shift):
+    kind = kind or "week"
+    start, end, title = period(kind, shift)
+    rows = collect(start, end)
+    cnt = {"x": 0, "-": 0, ">": 0, "open": 0}
+    seen_open = set()
+    for d, mark, key, mins, live in rows:
+        if mark in ("x", "X"):
+            cnt["x"] += 1
+        elif mark == "-":
+            cnt["-"] += 1
+        elif mark == ">":
+            cnt[">"] += 1
+        elif mark in OPEN:
+            seen_open.add(key)
+    cnt["open"] = len(seen_open)
+    print(f"{C['b']}{title}{C['rst']} {C['dim']}· статистика{C['rst']}\n")
+    if not rows:
+        print(f"{C['dim']}    за этот период задач нет{C['rst']}")
+        return
+    planned = cnt["x"] + cnt["-"] + cnt["open"]
+    rate = round(cnt["x"] / planned * 100) if planned else 0
+    meter = "■" * round(rate / 10) + "□" * (10 - round(rate / 10))
+    print(f"  {C['green']}закрыто{C['rst']}     {C['b']}{cnt['x']}{C['rst']}"
+          f"   {C['dim']}отменено {cnt['-']} · перенесено {cnt['>']} · ещё открыто {cnt['open']}{C['rst']}")
+    print(f"  выполнено   {C['blue']}{meter}{C['rst']} {rate}%")
+
+    timed = {}
+    for d, mark, key, mins, live in rows:
+        if mins:
+            timed[key] = timed.get(key, 0) + mins
+    total = sum(timed.values())
+    done_mins = [mins for d, mark, key, mins, live in rows if mark in ("x", "X") and mins]
+    if total:
+        avg_txt = f" · в среднем на закрытую {show_dur(sum(done_mins) // len(done_mins))}" if done_mins else ""
+        print(f"  время       {C['b']}{show_dur(total)}{C['rst']}{C['dim']}{avg_txt}{C['rst']}")
+
+    per_day = {}
+    for d, mark, key, mins, live in rows:
+        if mark in ("x", "X"):
+            per_day[d] = per_day.get(d, 0) + 1
+    if per_day:
+        best = max(per_day.items(), key=lambda kv: (kv[1], kv[0]))
+        print(f"  лучший день {WD[best[0].weekday()]} {best[0]:%d.%m} {C['dim']}· закрыто {best[1]}{C['rst']}")
+    s = streak()
+    if s:
+        word = "день" if s % 10 == 1 and s % 100 != 11 else "дня" if 2 <= s % 10 <= 4 and not 12 <= s % 100 <= 14 else "дней"
+        print(f"  серия       {C['b']}{s}{C['rst']} {word} подряд с закрытыми задачами")
+
+    wd = [0] * 7
+    for d, n in per_day.items():
+        wd[d.weekday()] += n
+    if any(wd):
+        top = max(wd)
+        spark = " ".join(SPARK[min(7, round(v / top * 7))] if v else "·" for v in wd)
+        print(f"\n  {C['dim']}пн вт ср чт пт сб вс{C['rst']}\n  {C['blue']}{'  '.join(spark.split(' '))}{C['rst']}  {C['dim']}закрыто по дням недели{C['rst']}")
+
+    if timed:
+        print(f"\n{C['blue']}дольше всего{C['rst']}")
+        for key, mins in sorted(timed.items(), key=lambda kv: -kv[1])[:3]:
+            print(f"  {show_dur(mins):>7}  {key}")
+
+
 def add(day, words):
     if not words:
         die("что добавить? t add [ЧЧ:ММ] текст")
@@ -606,7 +768,13 @@ def main(argv):
     elif cmd == "status":
         cmd_status()
     elif cmd == "report":
-        cmd_report(parse_day(args[0]) or day if args else day)
+        kind, shift = parse_period(args)
+        if kind:
+            cmd_report_period(kind, shift)
+        else:
+            cmd_report(parse_day(args[0]) or day if args else day)
+    elif cmd == "stats":
+        cmd_stats(*parse_period(args))
     elif cmd == "find":
         find(args)
     elif cmd == "edit":
