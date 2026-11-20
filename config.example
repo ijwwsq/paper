@@ -10,6 +10,8 @@ VAULT_NAME="vault"
 DAILY_DIR="daily"
 DAILY_TEMPLATE="templates/daily.md"
 TASKS_HEADING="## Tasks"
+NOTES_HEADING="## Notes"       # t note
+LOG_HEADING="## Work log"      # t log (with time)
 
 # greeting: ASCII art file and how many open tasks to list
 ART="$HOME/.config/paper/art.txt"

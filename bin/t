@@ -14,6 +14,7 @@ CONFIG = os.path.expanduser(os.environ.get("PAPER_CONFIG", "~/.config/paper/conf
 DEFAULTS = {
     "VAULT": "~/vault", "VAULT_NAME": "vault",
     "DAILY_DIR": "daily", "DAILY_TEMPLATE": "templates/daily.md", "TASKS_HEADING": "## Tasks",
+    "NOTES_HEADING": "## Notes", "LOG_HEADING": "## Work log",
 }
 
 
@@ -65,13 +66,13 @@ def help_text():
   t week                ближайшие 7 дней
   t now                 что сейчас в работе и сколько тикает
   t report {d}[день]{r}       куда ушло время
-  t find {d}слово{r}           открытые задачи по всему волту
+  t find {d}слово{r}          открытые задачи по всему волту
 
 {b}добавлять{r}
-  t add {d}текст{r}             на сегодня
-  t add {bl}16:00{r} {d}текст{r}       со временем {d}→ напоминание за 15 мин (виджеты){r}
-  t add @tom {d}текст{r}        на другой день {d}(@tom @+2 @2026-12-01){r}
-  t tom {d}текст{r}             коротко: на завтра
+  t add {d}текст{r}           на сегодня
+  t add {bl}16:00{r} {d}текст{r}     со временем {d}→ напоминание за 15 мин (виджеты){r}
+  t add @tom {d}текст{r}      на другой день {d}(@tom @+2 @2026-12-01){r}
+  t tom {d}текст{r}           коротко: на завтра
   t rollover            перенести вчерашние незакрытые на сегодня
 
 {b}работать{r}                {d}задачу можно указать номером, куском текста или не указывать — тогда выбор через fzf{r}
@@ -85,6 +86,11 @@ def help_text():
   t at N {bl}18:30{r}      время              t at N -      убрать время
   t prio N        {C['red']}⏫{r} приоритет      t rename N {d}текст{r}
   t rm N          удалить
+
+{b}заметки{r}                 {d}пишутся в ту же заметку дня{r}
+  t note {d}текст{r}          строка в {CFG['NOTES_HEADING']}
+  t log {d}текст{r}           в {CFG['LOG_HEADING']} с временем {d}(- 14:32 текст){r}
+  t notes {d}[день]{r}        лог и заметки за день
 
 {b}прочее{r}
   t open · t edit       заметка в Obsidian · в $EDITOR
@@ -439,6 +445,59 @@ def cmd_rollover(src):
     show(dt.date.today())
 
 
+# ── notes / work log ──────────────────────────────────────────────────────
+HEADING = re.compile(r"^#{1,6}\s")
+
+
+def section(lines, heading):
+    """(start, end) line range of a section's body, or None"""
+    h = heading.strip().lower()
+    try:
+        s = next(i for i, l in enumerate(lines) if l.strip().lower() == h)
+    except StopIteration:
+        return None
+    e = next((i for i in range(s + 1, len(lines)) if HEADING.match(lines[i])), len(lines))
+    return s + 1, e
+
+
+def append_to(day, heading, text):
+    p, lines = load(day, create=True)
+    rng = section(lines, heading)
+    if rng is None:
+        while lines and not lines[-1].strip():
+            lines.pop()
+        lines += ["", heading, ""]
+        rng = section(lines, heading)
+    s, e = rng
+    body = [i for i in range(s, e) if lines[i].strip() and lines[i].strip() != "-"]  # skip template's empty "- "
+    for i in sorted((i for i in range(s, e) if lines[i].strip() == "-"), reverse=True):
+        del lines[i]; e -= 1
+        body = [b - 1 if b > i else b for b in body]
+    pos = (body[-1] + 1) if body else s
+    lines.insert(pos, f"- {text}")
+    save(p, lines)
+
+
+def show_notes(day):
+    _, lines = load(day)
+    print(f"{C['b']}{day_name(day)}{C['rst']} {C['dim']}{WD[day.weekday()]} {day:%d.%m} · заметки{C['rst']}")
+    empty = True
+    for heading, label in ((CFG["LOG_HEADING"], "лог"), (CFG["NOTES_HEADING"], "заметки")):
+        rng = section(lines, heading)
+        items = [l.strip() for l in lines[rng[0]:rng[1]]] if rng else []
+        items = [l for l in items if l and l != "-"]
+        if not items:
+            continue
+        empty = False
+        print(f"\n{C['blue']}{label}{C['rst']}")
+        for l in items:
+            body = l[2:] if l.startswith("- ") else l
+            m = re.match(r"^(\d{1,2}:\d{2})\s+(.*)$", body)
+            print(f"  {C['dim']}{m.group(1)}{C['rst']}  {m.group(2)}" if m else f"  {C['dim']}·{C['rst']} {body}")
+    if empty:
+        print(f"{C['dim']}    пусто · t note текст · t log текст{C['rst']}")
+
+
 def week():
     today = dt.date.today()
     for k in range(7):
@@ -483,6 +542,18 @@ def main(argv):
         show(parse_day(args[0]) or day if args else day)
     elif cmd == "week":
         week()
+    elif cmd in ("note", "n"):
+        if not args:
+            die("что записать? t note текст")
+        append_to(day, CFG["NOTES_HEADING"], " ".join(args))
+        print(f"{C['dim']}записал в {CFG['NOTES_HEADING']} · {day_name(day)}{C['rst']}")
+    elif cmd in ("log", "l"):
+        if not args:
+            die("что записать? t log текст")
+        append_to(day, CFG["LOG_HEADING"], f"{now():%H:%M} " + " ".join(args))
+        print(f"{C['dim']}записал в {CFG['LOG_HEADING']} · {now():%H:%M}{C['rst']}")
+    elif cmd == "notes":
+        show_notes(parse_day(args[0]) or day if args else day)
     elif cmd in ("add", "a"):
         add(day, args); show(day)
     elif cmd in ("tom", "tomorrow"):
@@ -549,7 +620,7 @@ def main(argv):
         subprocess.call([opener, uri])
     elif cmd == "config":
         print(f"{C['b']}{CONFIG}{C['rst']}" + ("" if os.path.exists(CONFIG) else f"  {C['red']}(нет файла — значения по умолчанию){C['rst']}"))
-        for k in ("VAULT", "VAULT_NAME", "DAILY_DIR", "DAILY_TEMPLATE", "TASKS_HEADING"):
+        for k in ("VAULT", "VAULT_NAME", "DAILY_DIR", "DAILY_TEMPLATE", "TASKS_HEADING", "NOTES_HEADING", "LOG_HEADING"):
             print(f"  {k:<15}{C['dim']}{CFG[k]}{C['rst']}")
     elif cmd in ("-h", "--help", "help", "h"):
         print(help_text())
