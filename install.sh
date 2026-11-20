@@ -29,6 +29,7 @@ done
 
 put bin/t            "$HOME/.local/bin/t"            +x
 put bin/term-start   "$HOME/.local/bin/term-start"   +x
+put bin/keys         "$HOME/.local/bin/keys"         +x
 put zsh/greet.zsh    "$HOME/.config/zsh/greet.zsh"
 put tmux/tmux.conf   "$HOME/.tmux.conf"
 seed config.example  "$HOME/.config/paper/config"
