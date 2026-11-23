@@ -27,6 +27,9 @@ ${b}alacritty${r}
   ${bl}Ctrl+V${r} вставить · ${bl}Ctrl+Shift+C${r} копировать · ${bl}Ctrl+Shift+F${r} поиск · ${bl}Ctrl+Shift+N${r} новое окно
   ${bl}Ctrl+= Ctrl+- Ctrl+0${r} размер шрифта · ${bl}Ctrl+Backspace${r} удалить слово
 
+${b}nvim${r}                                     ${d}пробел — лидер, подсказки всплывают сами${r}
+  ${bl}Ctrl+P${r} файлы · ${bl}Ctrl+F${r} поиск · ${bl}пробел e${r} дерево · ${bl}Ctrl+Space${r} автодополнение · ${bl}пробел tt${r} задачи
+
 ${b}прочее${r}
   ${bl}t help${r} задачи · ${bl}greet${r} сводка · ${bl}keys${r} эта шпаргалка ${d}(в tmux — F1)${r}
 EOF

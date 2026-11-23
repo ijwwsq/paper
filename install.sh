@@ -36,12 +36,17 @@ seed config.example  "$HOME/.config/paper/config"
 seed art/cat.txt "$HOME/.config/paper/art.txt"
 [[ -d $HOME/.oh-my-zsh ]] && put zsh/mini.zsh-theme "$HOME/.oh-my-zsh/custom/themes/mini.zsh-theme"
 
+# neovim config (plugins install themselves on first start via lazy.nvim)
+for f in $(cd "$here" && find nvim -type f); do put "$f" "$HOME/.config/$f"; done
+command -v nvim >/dev/null || say "nvim не найден — свежий: https://github.com/neovim/neovim/releases (nvim-linux-x86_64.tar.gz → ~/.local)"
+
 # hook into ~/.zshrc once (marked block, easy to remove)
 if ! grep -q '>>> paper >>>' "$HOME/.zshrc" 2>/dev/null; then
   cat >> "$HOME/.zshrc" <<'EOF'
 
 # >>> paper >>>
 path=("$HOME/.local/bin" $path)
+(( $+commands[nvim] )) && export EDITOR=nvim VISUAL=nvim
 [[ -r ~/.config/zsh/greet.zsh ]] && source ~/.config/zsh/greet.zsh
 # <<< paper <<<
 EOF
