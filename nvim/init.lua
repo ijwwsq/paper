@@ -91,10 +91,12 @@ o.fillchars     = { eob = " ", vert = "│", fold = " " }
 o.showmode      = false         -- mode is in the statusline
 o.laststatus    = 3
 o.pumheight     = 10
-vim.cmd.colorscheme("paper")
+local theme = require("paper.theme")    -- THEME= в ~/.config/paper/config
+o.background = theme.dark and "dark" or o.background:get()
+if theme.name == "paper" then vim.cmd.colorscheme("paper") end   -- gruvbox ставится плагином (lua/plugins/ui.lua)
 
 require("lazy").setup("plugins", {
-  install = { colorscheme = { "paper" } },
+  install = { colorscheme = { theme.name, "paper" } },
   change_detection = { notify = false },
   ui = { border = "rounded", backdrop = 100 },
 })

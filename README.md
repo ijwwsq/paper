@@ -6,6 +6,7 @@
 </pre>
 
 светлый фон, графитовый текст, приглушённые цвета, JetBrains Mono везде.
+или тёмный [gruvbox](#темы) — одной строкой в конфиге.
 задачи живут в заметках дня Obsidian, а управляются из терминала.
 
 <p align="center"><img src="docs/terminal.png" width="720" alt="терминал: сводка и t"></p>
@@ -24,7 +25,8 @@
 | **mini** | промпт `dir $ ` для oh-my-zsh, без ничего лишнего |
 | **nvim** | тема paper, тихая строка состояния, поиск, дерево, git, LSP для Python/Rust, стартовый экран с котом и задачами, `:T` для задач |
 | **виджеты** | часы, календарь с задачами, VPN, графики cpu/mem/net, напоминания Windows за 15 минут |
-| **obsidian · vs code** | сниппет и цвета в той же палитре (у vs code есть тёмная версия) |
+| **obsidian · vs code** | сниппет и цвета в той же палитре (у vs code есть тёмная версия и gruvbox) |
+| **темы** | `paper` (светлая) или `gruvbox` (тёмная) — терминал, tmux, nvim, виджеты |
 | **обои** | конвертер фото → ASCII ровно под разрешение монитора |
 
 <p align="center"><img src="docs/widgets.png" width="560" alt="виджеты"></p>
@@ -84,7 +86,8 @@ t report week·month   время за период      t stats [month] зак�
 ## nvim
 
 конфиг в [`nvim/`](nvim), ставится тем же `install.sh`, плагины тянет lazy.nvim при первом запуске.
-тема — своя [`colors/paper.lua`](nvim/colors/paper.lua) (есть тёмная: `:set background=dark`).
+тема — своя [`colors/paper.lua`](nvim/colors/paper.lua) (есть тёмная: `:set background=dark`),
+с `THEME="gruvbox"` — [gruvbox.nvim](https://github.com/ellisonleao/gruvbox.nvim).
 
 ```
 пробел — лидер            Ctrl+P  файлы      Ctrl+F  поиск по тексту     пробел e  дерево
@@ -99,6 +102,7 @@ gd  к определению   gr  ссылки   пробел rn  переим
 всё в `~/.config/paper/config` (пример — [`config.example`](config.example)):
 
 ```sh
+THEME="paper"                              # или gruvbox
 VAULT="/mnt/c/Users/YOU/Documents/vault"   # волт, как его видно из wsl
 DAILY_DIR="daily"                          # папка заметок дня
 DAILY_TEMPLATE="templates/daily.md"        # шаблон для новых заметок
@@ -112,6 +116,33 @@ POPUP=1                                    # сводка при открыти�
 виджеты читают `widgets.config.json` рядом с собой: волт, клиенты VPN, за сколько минут напоминать
 ([пример](windows/widgets/widgets.config.example.json)).
 
+## темы
+
+две палитры: **paper** — светлая бумага, **gruvbox** — тёплая тёмная ([gruvbox](https://github.com/morhetz/gruvbox), medium).
+
+<p align="center"><img src="docs/terminal-gruvbox.png" width="560" alt="терминал в gruvbox">
+<img src="docs/widgets-gruvbox.png" width="400" alt="виджеты в gruvbox"></p>
+
+```sh
+# wsl: tmux, nvim, сводка
+sed -i 's/^THEME=.*/THEME="gruvbox"/' ~/.config/paper/config && bash ~/paper/install.sh
+```
+
+```powershell
+# windows: alacritty и виджеты
+.\install.ps1 -Theme gruvbox -Widgets
+```
+
+| | paper | gruvbox |
+|---|---|---|
+| alacritty | [`themes/paper.toml`](alacritty/themes/paper.toml) | [`themes/gruvbox.toml`](alacritty/themes/gruvbox.toml) |
+| tmux | [`themes/paper.conf`](tmux/themes/paper.conf) | [`themes/gruvbox.conf`](tmux/themes/gruvbox.conf) |
+| nvim | `colors/paper.lua` | gruvbox.nvim |
+| виджеты | `"theme": "paper"` | `"theme": "gruvbox"` (+ `"font": "Inter"`, если положить шрифт в `fonts\`) |
+| vs code | [`paper-*.jsonc`](vscode) | [`gruvbox.jsonc`](vscode/gruvbox.jsonc) + `jdinhlife.gruvbox` |
+| obsidian | сниппет | тема «Obsidian gruvbox» + тот же сниппет |
+| обои | `ascii_photo.py` | он же, потом `tools/ascii_tint.py` |
+
 ## палитра
 
 <p align="center"><img src="docs/palette.png" width="720" alt="палитра"></p>
@@ -123,6 +154,8 @@ POPUP=1                                    # сводка при открыти�
 ```sh
 python tools/ascii_photo.py фото.jpg обои.png 1920 1080 13 JetBrainsMono-Bold.ttf [ширина_полосы_слева]
 ```
+
+для gruvbox: `python tools/ascii_tint.py обои.png обои-gruvbox.png` — перекрашивает в тёмную.
 
 рендерь ровно в разрешение монитора — тогда символы чёткие. тёмные места заливаются фактурой
 из `@ # % & $`, тонкие линии — штрихами `/ \ | -`.

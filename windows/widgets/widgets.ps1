@@ -1,6 +1,42 @@
 ﻿# Desktop widgets: clock, unified VPN control, system stats. WPF, no dependencies.
 param([string]$Snapshot)
 
+# --- theme / font from widgets.config.json -----------------------------------------
+# The script is written in the "paper" palette with JetBrains Mono. For "theme": "gruvbox" or a
+# different "font", a re-colored copy (widgets.themed.ps1) is generated next to it and run instead.
+if (-not $env:PAPER_WIDGETS_THEMED) {
+    $dir0 = Split-Path -Parent $MyInvocation.MyCommand.Path
+    $cfg0 = Join-Path $dir0 'widgets.config.json'
+    $j0 = if (Test-Path -LiteralPath $cfg0) { Get-Content -LiteralPath $cfg0 -Raw -Encoding UTF8 | ConvertFrom-Json } else { $null }
+    $theme0 = if ($j0 -and $j0.theme) { "$($j0.theme)" } else { 'paper' }
+    $font0 = if ($j0 -and $j0.font) { "$($j0.font)" } else { '' }
+    if ($theme0 -ne 'paper' -or $font0) {
+        $src0 = [IO.File]::ReadAllText($MyInvocation.MyCommand.Path)
+        if ($theme0 -eq 'gruvbox') {
+            $map0 = @{
+                'FFFFFF' = '282828'; '2F2F2F' = 'EBDBB2'; '8C8C88' = '928374'; 'E4E4E0' = '504945'
+                '5B6FA8' = 'FABD2F'; '5E8A5C' = 'B8BB26'; 'A5803A' = 'FE8019'; 'B5584E' = 'FB4934'
+                'F2F2F2' = '3C3836'; 'EFEFEC' = '3C3836'; 'EDEDED' = '3C3836'; 'EAEAE6' = '3C3836'
+                'E7E7E3' = '3C3836'; 'E4E4E4' = '3C3836'; 'E1E6F0' = '524629'; 'CBCCCD' = '665C54'
+                'B9B9B4' = '665C54'
+            }
+            $src0 = [regex]::Replace($src0, '#[0-9A-Fa-f]{6}\b', { param($m) $k = $m.Value.Substring(1).ToUpper(); if ($map0.ContainsKey($k)) { '#' + $map0[$k] } else { $m.Value } })
+            $src0 = $src0.Replace('$OffC = Color ' + '$Line', '$OffC = Color ''#' + '665C54''')   # split literals: the copy must not rewrite this line itself
+        }
+        if ($font0) {
+            $src0 = $src0.Replace('FontFamily="@FONTS@#' + 'JetBrains Mono, Consolas"', "FontFamily=`"@FONTS@#$font0, Segoe UI`"")
+            if ($font0 -eq 'Inter') {
+                $src0 = $src0.Replace('<TextBlock x:Name="Time" ' + 'FontWeight="Light" FontSize="50"/>', '<TextBlock x:Name="Time" FontFamily="@FONTS@#Inter Display, Segoe UI Light" FontWeight="Light" FontSize="56"/>')
+            }
+        }
+        $tmp0 = Join-Path $dir0 'widgets.themed.ps1'
+        [IO.File]::WriteAllText($tmp0, $src0, (New-Object Text.UTF8Encoding $true))
+        $env:PAPER_WIDGETS_THEMED = '1'
+        & $tmp0 -Snapshot $Snapshot
+        exit
+    }
+}
+
 $created = $false
 $mutex = New-Object System.Threading.Mutex($true, $(if ($Snapshot) { 'Local\DeskWidgetsSnapshot' } else { 'Local\DeskWidgets' }), [ref]$created)
 if (-not $created) { exit }

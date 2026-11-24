@@ -1,4 +1,5 @@
-# paper — Alacritty: soft paper palette, JetBrains Mono, opens WSL straight into tmux.
+# paper — Alacritty: JetBrains Mono, opens WSL straight into tmux.
+# colors: themes/paper.toml or themes/gruvbox.toml (install.ps1 -Theme picks one)
 # WSL distro below is "Debian" — change it to yours (`wsl -l -q`).
 
 [terminal.shell]
@@ -68,51 +69,3 @@ bindings = [
 
 [bell]
 duration = 0
-
-# ── colors: soft paper (muted, low-contrast accents on white) ──
-[colors]
-draw_bold_text_with_bright_colors = false
-
-[colors.primary]
-background = "#fcfcfa"
-foreground = "#2f2f2f"
-
-[colors.cursor]
-text = "#fcfcfa"
-cursor = "#6b6b6b"
-
-[colors.selection]
-text = "CellForeground"
-background = "#e1e7f0"
-
-[colors.search]
-matches = { foreground = "#2f2f2f", background = "#f2e6c4" }
-focused_match = { foreground = "#fcfcfa", background = "#5b6fa8" }
-
-[colors.footer_bar]
-foreground = "#fcfcfa"
-background = "#4a4a4a"
-
-[colors.hints]
-start = { foreground = "#fcfcfa", background = "#5b6fa8" }
-end = { foreground = "#5b6fa8", background = "#e1e7f0" }
-
-[colors.normal]
-black   = "#3a3a3a"
-red     = "#b5584e"
-green   = "#5e8a5c"
-yellow  = "#a5803a"
-blue    = "#5b6fa8"
-magenta = "#8d6597"
-cyan    = "#4d8a8c"
-white   = "#a9a9a6"
-
-[colors.bright]
-black   = "#8c8c88"
-red     = "#c46f66"
-green   = "#729c6f"
-yellow  = "#b8934c"
-blue    = "#7083b8"
-magenta = "#9f79a8"
-cyan    = "#629b9d"
-white   = "#cfcfcb"

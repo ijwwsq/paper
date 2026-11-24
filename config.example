@@ -2,6 +2,10 @@
 # install.sh copies this to ~/.config/paper/config (only if it doesn't exist yet). Edit that copy.
 # Plain KEY="value" lines; read by both zsh (`source`) and python. ~ and $HOME are expanded.
 
+# colors: paper (light) or gruvbox (dark). Used by nvim and by install.sh for tmux;
+# on Windows pass the same name to install.ps1 -Theme (Alacritty, widgets).
+THEME="paper"
+
 # Obsidian vault as seen from WSL, and its name (for obsidian:// links)
 VAULT="/mnt/c/Users/YOU/Documents/vault"
 VAULT_NAME="vault"

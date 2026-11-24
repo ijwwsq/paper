@@ -1,4 +1,5 @@
 {
+  "theme": "paper",
   "vault": "%USERPROFILE%\\Documents\\vault",
   "vaultName": "vault",
   "dailyDir": "daily",

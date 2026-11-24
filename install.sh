@@ -34,11 +34,16 @@ put zsh/greet.zsh    "$HOME/.config/zsh/greet.zsh"
 put tmux/tmux.conf   "$HOME/.tmux.conf"
 seed config.example  "$HOME/.config/paper/config"
 seed art/cat.txt "$HOME/.config/paper/art.txt"
+
+# theme: THEME= in ~/.config/paper/config (paper | gruvbox) picks the tmux colors; nvim reads it itself
+theme="$(grep -E '^[[:space:]]*THEME=' "$HOME/.config/paper/config" | tail -n1 | cut -d= -f2 | cut -d'#' -f1 | tr -dc 'A-Za-z0-9_-' || true)"
+[[ -f $here/tmux/themes/${theme:-paper}.conf ]] || theme=paper
+put "tmux/themes/${theme:-paper}.conf" "$HOME/.config/paper/tmux-theme.conf"
 [[ -d $HOME/.oh-my-zsh ]] && put zsh/mini.zsh-theme "$HOME/.oh-my-zsh/custom/themes/mini.zsh-theme"
 
 # neovim config (plugins install themselves on first start via lazy.nvim)
 for f in $(cd "$here" && find nvim -type f); do put "$f" "$HOME/.config/$f"; done
-command -v nvim >/dev/null || say "nvim не найден — свежий: https://github.com/neovim/neovim/releases (nvim-linux-x86_64.tar.gz → ~/.local)"
+{ command -v nvim || [[ -x $HOME/.local/bin/nvim ]]; } >/dev/null || say "nvim не найден — свежий: https://github.com/neovim/neovim/releases (nvim-linux-x86_64.tar.gz → ~/.local)"
 
 # hook into ~/.zshrc once (marked block, easy to remove)
 if ! grep -q '>>> paper >>>' "$HOME/.zshrc" 2>/dev/null; then
@@ -63,6 +68,7 @@ cat <<EOF
   1. пропиши свой волт:   $(c 34 "\$EDITOR ~/.config/paper/config")
   2. проверь:             $(c 34 't config')  и  $(c 34 't help')
   3. тема промпта:        ZSH_THEME="mini" в ~/.zshrc  $(c 90 '(oh-my-zsh)')
-  4. свой арт:            ~/.config/paper/art.txt  $(c 90 '— любой текст')
+  4. тема:                THEME="gruvbox" в config → снова install.sh  $(c 90 '(Windows: install.ps1 -Theme gruvbox)')
+  5. свой арт:            ~/.config/paper/art.txt  $(c 90 '— любой текст')
 
 EOF

@@ -15,7 +15,11 @@ BUILTIN = {  # 24x24, nonzero fill; holes run the other way
     "calendar": "M4 5h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM4 10v9h16v-9zM7 2h2v4H7zM15 2h2v4h-2z",
     "notepad": "M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zM6 4v16h12V8h-4V4zM8 11h8v1.6H8zM8 14.2h8v1.6H8zM8 17.4h5v1.6H8z",
 }
-INK, CARD, EDGE = (47, 47, 47, 255), (255, 255, 255, 255), (200, 200, 196, 255)
+def _rgb(name, default):
+    v = os.environ.get(name, default).lstrip("#")
+    return tuple(int(v[i:i + 2], 16) for i in (0, 2, 4)) + (255,)
+# colors: PAPER_ICON_INK / _CARD / _EDGE (hex); defaults = paper light
+INK, CARD, EDGE = _rgb("PAPER_ICON_INK", "2f2f2f"), _rgb("PAPER_ICON_CARD", "ffffff"), _rgb("PAPER_ICON_EDGE", "c8c8c4")
 
 
 # ── SVG path → list of polylines (subpaths) ──────────────────────────────

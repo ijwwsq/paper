@@ -1,0 +1,12 @@
+// paper — gruvbox dark for VS Code (THEME="gruvbox").
+// 1. поставь расширение: code --install-extension jdinhlife.gruvbox
+// 2. влей в settings.json (Ctrl+Shift+P → "Preferences: Open User Settings (JSON)").
+{
+    "workbench.colorTheme": "Gruvbox Dark Medium",
+    "editor.fontFamily": "'JetBrains Mono', Consolas, monospace",
+    "terminal.integrated.fontFamily": "'JetBrains Mono'",
+    "terminal.integrated.fontSize": 13,
+    "terminal.integrated.cursorStyle": "block",
+    "editor.cursorBlinking": "solid",
+    "editor.renderLineHighlight": "line"
+}

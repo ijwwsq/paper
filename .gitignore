@@ -4,3 +4,4 @@ widgets.config.json
 *.bak-*
 __pycache__/
 windows/widgets/fonts/
+widgets.themed.ps1

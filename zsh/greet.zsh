@@ -57,7 +57,7 @@ greet() {
   fi
 
   local -a info=(
-    "%F{0}%B${d#0} ${months[${m#0}]}, ${days[$((w + 1))]} · $hm%b%f"
+    "%B${d#0} ${months[${m#0}]}, ${days[$((w + 1))]} · $hm%b%f"
     "%F{8}up $((up / 86400))d $((up % 86400 / 3600))h $((up % 3600 / 60))m · mem ${used}M / ${total}M%f"
     ""
   )

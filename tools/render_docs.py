@@ -1,18 +1,28 @@
-# Renders the README pictures (terminal mock-up + palette strip) in the paper palette.
-# usage: python tools/render_docs.py <JetBrainsMono dir> <out dir>
+# Renders the README pictures (terminal mock-up + palette strip).
+# usage: python tools/render_docs.py <JetBrainsMono dir> <out dir> [paper|gruvbox]
+#   paper → terminal.png, palette.png;  gruvbox → terminal-gruvbox.png, palette-gruvbox.png
 import os
 import sys
 from PIL import Image, ImageDraw, ImageFont
 
 FONTS, OUT = sys.argv[1], sys.argv[2]
+THEME = sys.argv[3] if len(sys.argv) > 3 else "paper"
+SUFFIX = "" if THEME == "paper" else "-" + THEME
 reg = ImageFont.truetype(os.path.join(FONTS, "JetBrainsMono-Regular.ttf"), 26)
 bold = ImageFont.truetype(os.path.join(FONTS, "JetBrainsMono-Bold.ttf"), 26)
 
-BG, FG = "#fcfcfa", "#2f2f2f"
-PAL = {
-    "fg": FG, "dim": "#8c8c88", "blue": "#5b6fa8", "red": "#b5584e", "green": "#5e8a5c",
-    "yellow": "#a5803a", "magenta": "#8d6597", "cyan": "#4d8a8c", "rule": "#dcdcd8",
-}
+if THEME == "gruvbox":
+    BG, FG = "#282828", "#ebdbb2"
+    PAL = {
+        "fg": FG, "dim": "#928374", "blue": "#83a598", "red": "#fb4934", "green": "#b8bb26",
+        "yellow": "#fabd2f", "magenta": "#d3869b", "cyan": "#8ec07c", "rule": "#504945", "accent": "#fabd2f",
+    }
+else:
+    BG, FG = "#fcfcfa", "#2f2f2f"
+    PAL = {
+        "fg": FG, "dim": "#8c8c88", "blue": "#5b6fa8", "red": "#b5584e", "green": "#5e8a5c",
+        "yellow": "#a5803a", "magenta": "#8d6597", "cyan": "#4d8a8c", "rule": "#dcdcd8", "accent": "#5b6fa8",
+    }
 
 # each line: list of (text, color, bold)
 def L(*parts):
@@ -64,7 +74,7 @@ dr = ImageDraw.Draw(img)
 dr.text((padx, 14), " 1 ~ ", font=bold, fill=FG)
 dr.text((padx + cw * 6, 14), " 2 paper  3 notes", font=reg, fill=PAL["dim"])
 st = "▶ ревью пулреквестов 25м"
-dr.text((W - padx - cw * (len(st) + 6), 14), st, font=reg, fill=PAL["blue"])
+dr.text((W - padx - cw * (len(st) + 6), 14), st, font=reg, fill=PAL["accent"])
 dr.text((W - padx - cw * 4, 14), "main", font=reg, fill=PAL["dim"])
 dr.line((0, bar - 6, W, bar - 6), fill=PAL["rule"], width=2)
 y = bar + pady
@@ -75,7 +85,7 @@ for line in lines:
         dr.text((x, y), text, font=f, fill=PAL.get(color, color))
         x += f.getlength(text)
     y += ch
-img.save(os.path.join(OUT, "terminal.png"), optimize=True)
+img.save(os.path.join(OUT, f"terminal{SUFFIX}.png"), optimize=True)
 
 # palette strip
 names = [("bg", BG), ("fg", FG), ("dim", PAL["dim"]), ("blue", PAL["blue"]), ("red", PAL["red"]),
@@ -89,5 +99,5 @@ for i, (n, c) in enumerate(names):
     pd.rectangle((x + 10, 10, x + sw - 10, sh - 10), fill=c, outline=PAL["rule"], width=2)
     pd.text((x + 14, sh + 4), n, font=small, fill=FG)
     pd.text((x + 14, sh + 32), c, font=small, fill=PAL["dim"])
-p.save(os.path.join(OUT, "palette.png"), optimize=True)
+p.save(os.path.join(OUT, f"palette{SUFFIX}.png"), optimize=True)
 print("ok", W, H)

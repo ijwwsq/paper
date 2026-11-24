@@ -4,9 +4,12 @@
 #   .\install.ps1 -Vault D:\notes\vault   + сниппет paper.css в Obsidian
 #   .\install.ps1 -Widgets                + виджеты рабочего стола (в автозагрузку)
 #   .\install.ps1 -All -Vault ...         всё сразу
+#   .\install.ps1 -Theme gruvbox          тёмная тема (по умолчанию paper) — Alacritty и виджеты;
+#                                         в WSL то же самое: THEME="gruvbox" в ~/.config/paper/config
 #
 # Существующие файлы уходят в *.bak-<дата>. Ничего не требует прав администратора.
-param([string]$Vault, [switch]$Widgets, [switch]$All, [switch]$NoFont)
+param([string]$Vault, [switch]$Widgets, [switch]$All, [switch]$NoFont,
+      [ValidateSet('paper', 'gruvbox')][string]$Theme = 'paper')
 $ErrorActionPreference = 'Stop'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
@@ -21,14 +24,16 @@ New-Item -ItemType Directory -Force $cfgDir | Out-Null
 $ala = Join-Path $cfgDir 'alacritty.toml'
 Backup $ala
 Copy-Item (Join-Path $here 'alacritty\alacritty.toml') $ala -Force
+$alaTheme = Join-Path $cfgDir 'alacritty-theme.toml'
+Copy-Item (Join-Path $here "alacritty\themes\$Theme.toml") $alaTheme -Force
 $stub = Join-Path $env:APPDATA 'alacritty\alacritty.toml'
 New-Item -ItemType Directory -Force (Split-Path $stub) | Out-Null
-$import = ($ala -replace '\\', '/')
-if (-not ((Test-Path $stub) -and (Get-Content $stub -Raw) -match [regex]::Escape($import))) {
+$want = "[general]`nlive_config_reload = true`nimport = [`"$($ala -replace '\\', '/')`", `"$($alaTheme -replace '\\', '/')`"]"
+if (-not ((Test-Path $stub) -and (Get-Content $stub -Raw).Trim() -eq $want)) {
     Backup $stub
-    Set-Content -Encoding ascii $stub "[general]`nlive_config_reload = true`nimport = [`"$import`"]"
+    Set-Content -Encoding ascii $stub $want
 }
-Say "alacritty → $ala"
+Say "alacritty → $ala  (тема $Theme)"
 
 # ── JetBrains Mono (per user, from the official GitHub release) ───────────────────────
 $fontDir = Join-Path $env:LOCALAPPDATA 'Microsoft\Windows\Fonts'
@@ -71,6 +76,12 @@ if ($Widgets -or $All) {
         if ($Vault) { (Get-Content $cfg -Raw).Replace('%USERPROFILE%\\Documents\\vault', ($Vault -replace '\\', '\\')) | Set-Content $cfg -Encoding UTF8 }
         Say "config → $cfg  (поправь волт и VPN-клиентов)"
     } else { Say "keep   $cfg" }
+    $j = Get-Content $cfg -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($j.theme -ne $Theme) {
+        $j | Add-Member -NotePropertyName theme -NotePropertyValue $Theme -Force
+        $j | ConvertTo-Json -Depth 8 | Set-Content $cfg -Encoding UTF8
+        Say "widgets theme → $Theme"
+    }
     $lnk = Join-Path ([Environment]::GetFolderPath('Startup')) 'paper-widgets.lnk'
     $s = (New-Object -ComObject WScript.Shell).CreateShortcut($lnk)
     $s.TargetPath = 'wscript.exe'; $s.Arguments = "`"$wd\start.vbs`""; $s.Save()
@@ -82,7 +93,8 @@ Write-Host @"
 
   дальше
   1. WSL:      wsl -d Debian -- bash install.sh   (t, приветствие, tmux)
-  2. VS Code:  vscode\paper-dark.jsonc или paper-light.jsonc → в settings.json
-  3. обои:     python tools\ascii_photo.py фото.jpg out.png 1920 1080 13 <шрифт.ttf>
+  2. VS Code:  vscode\paper-*.jsonc или vscode\gruvbox.jsonc → в settings.json
+  3. Obsidian: для gruvbox — тема «Obsidian gruvbox» из каталога тем, сниппет подстроится
+  4. обои:     python tools\ascii_photo.py фото.jpg out.png 1920 1080 13 <шрифт.ttf>
 
 "@
