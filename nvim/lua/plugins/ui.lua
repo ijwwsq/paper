@@ -1,10 +1,10 @@
 return {
-  -- цветовая схема: THEME="paper" → colors/paper.lua (своя), THEME="gruvbox" → этот плагин
+  -- цветовая схема: colors/paper.lua и colors/concoctis.lua свои, gruvbox — этот плагин
   {
     "ellisonleao/gruvbox.nvim",
     lazy = false,
     priority = 1000,
-    cond = function() return require("paper.theme").name == "gruvbox" end,
+    cond = function() return require("paper.theme").colors == "gruvbox" end,
     config = function()
       require("gruvbox").setup({
         contrast = "",
@@ -27,9 +27,11 @@ return {
     "nvim-lualine/lualine.nvim",
     event = "VeryLazy",
     opts = function()
-      local gruvbox = require("paper.theme").name == "gruvbox"
+      local colors = require("paper.theme").colors
+      local gruvbox = colors == "gruvbox"
       local dark = vim.o.background == "dark"
-      local c = gruvbox and { bg = "#3c3836", fg = "#d5c4a1", dim = "#928374", ink = "#ebdbb2", blue = "#fabd2f", green = "#b8bb26", red = "#fb4934", yellow = "#fe8019" }
+      local c = colors == "concoctis" and { bg = "#171819", fg = "#a89984", dim = "#928374", ink = "#d4be98", blue = "#d8a657", green = "#a9b665", red = "#ea6962", yellow = "#e78a4e" }
+             or gruvbox and { bg = "#3c3836", fg = "#d5c4a1", dim = "#928374", ink = "#ebdbb2", blue = "#fabd2f", green = "#b8bb26", red = "#fb4934", yellow = "#fe8019" }
              or dark and { bg = "#222220", fg = "#a8a8a2", dim = "#6b6b67", ink = "#d6d6d0", blue = "#7c8fc4", green = "#7fa37c", red = "#c46f66", yellow = "#c4a15c" }
              or { bg = "#f6f6f3", fg = "#55554f", dim = "#8c8c88", ink = "#2f2f2f", blue = "#5b6fa8", green = "#5e8a5c", red = "#b5584e", yellow = "#a5803a" }
       local mode = function(col) return { a = { fg = col, bg = c.bg, gui = "bold" }, b = { fg = c.fg, bg = c.bg }, c = { fg = c.dim, bg = c.bg } } end

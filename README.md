@@ -88,6 +88,7 @@ t report week·month   время за период      t stats [month] зак�
 конфиг в [`nvim/`](nvim), ставится тем же `install.sh`, плагины тянет lazy.nvim при первом запуске.
 тема — своя [`colors/paper.lua`](nvim/colors/paper.lua) (есть тёмная: `:set background=dark`),
 с `THEME="gruvbox"` — [gruvbox.nvim](https://github.com/ellisonleao/gruvbox.nvim).
+только для nvim можно `NVIM_COLORS="concoctis"` — порт VS Code-темы gruvboxConcoctis dark hard ([`colors/concoctis.lua`](nvim/colors/concoctis.lua)).
 
 ```
 пробел — лидер            Ctrl+P  файлы      Ctrl+F  поиск по тексту     пробел e  дерево

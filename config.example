@@ -5,6 +5,8 @@
 # colors: paper (light) or gruvbox (dark). Used by nvim and by install.sh for tmux;
 # on Windows pass the same name to install.ps1 -Theme (Alacritty, widgets).
 THEME="paper"
+# nvim only, optional: paper | gruvbox | concoctis (the VS Code theme "gruvboxConcoctis dark hard")
+# NVIM_COLORS="concoctis"
 
 # Obsidian vault as seen from WSL, and its name (for obsidian:// links)
 VAULT="/mnt/c/Users/YOU/Documents/vault"

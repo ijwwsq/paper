@@ -93,10 +93,10 @@ o.laststatus    = 3
 o.pumheight     = 10
 local theme = require("paper.theme")    -- THEME= в ~/.config/paper/config
 o.background = theme.dark and "dark" or o.background:get()
-if theme.name == "paper" then vim.cmd.colorscheme("paper") end   -- gruvbox ставится плагином (lua/plugins/ui.lua)
+if theme.colors ~= "gruvbox" then vim.cmd.colorscheme(theme.colors) end   -- gruvbox ставится плагином (lua/plugins/ui.lua)
 
 require("lazy").setup("plugins", {
-  install = { colorscheme = { theme.name, "paper" } },
+  install = { colorscheme = { theme.colors, "paper" } },
   change_detection = { notify = false },
   ui = { border = "rounded", backdrop = 100 },
 })
